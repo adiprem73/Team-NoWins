@@ -1,0 +1,103 @@
+services:
+  # DynamoDB Local (for pattern service)
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    ports:
+      - "8100:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+
+  # API Gateway
+  gateway:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file: ./backend/.env
+    environment:
+      - MOOD_SERVICE_URL=http://mood-service:8001
+      - BEHAVIOR_SERVICE_URL=http://behavior-service:8002
+      - PATTERNS_SERVICE_URL=http://patterns-service:8003
+      - DEVICES_SERVICE_URL=http://devices-service:8004
+      - ORCHESTRATOR_SERVICE_URL=http://orchestrator-service:8005
+    command: uvicorn gateway.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - mood-service
+      - behavior-service
+      - patterns-service
+      - devices-service
+      - orchestrator-service
+
+  # Mood Analysis Service
+  mood-service:
+    build: ./backend
+    ports:
+      - "8001:8001"
+    env_file: ./backend/.env
+    command: uvicorn services.mood.main:app --host 0.0.0.0 --port 8001 --reload
+    volumes:
+      - ./backend:/app
+
+  # Behavior Tracking Service
+  behavior-service:
+    build: ./backend
+    ports:
+      - "8002:8002"
+    env_file: ./backend/.env
+    command: uvicorn services.behavior.main:app --host 0.0.0.0 --port 8002 --reload
+    volumes:
+      - ./backend:/app
+
+  # Pattern Recognition Service
+  patterns-service:
+    build: ./backend
+    ports:
+      - "8003:8003"
+    env_file: ./backend/.env
+    environment:
+      - DYNAMODB_ENDPOINT_URL=http://dynamodb-local:8000
+      - AWS_REGION=us-east-1
+    command: uvicorn patterns.app.main:app --host 0.0.0.0 --port 8003 --reload
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - dynamodb-local
+
+  # Device Control Service
+  devices-service:
+    build: ./backend
+    ports:
+      - "8004:8004"
+    env_file: ./backend/.env
+    command: uvicorn services.devices.main:app --host 0.0.0.0 --port 8004 --reload
+    volumes:
+      - ./backend:/app
+
+  # Orchestrator Service (The Brain)
+  orchestrator-service:
+    build: ./backend
+    ports:
+      - "8005:8005"
+    env_file: ./backend/.env
+    environment:
+      - MOOD_SERVICE_URL=http://mood-service:8001
+      - BEHAVIOR_SERVICE_URL=http://behavior-service:8002
+      - PATTERNS_SERVICE_URL=http://patterns-service:8003
+      - DEVICES_SERVICE_URL=http://devices-service:8004
+    command: uvicorn services.orchestrator.main:app --host 0.0.0.0 --port 8005 --reload
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - mood-service
+      - behavior-service
+      - patterns-service
+      - devices-service
+
+  # Frontend Dashboard
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    env_file: ./frontend/.env
+    depends_on:
+      - gateway

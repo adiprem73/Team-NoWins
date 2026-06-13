@@ -67,13 +67,20 @@ class Settings(BaseSettings):
     extraction_interval_hours: float = 24.0
 
     # --- LLM narrator (Alexa-voice notifications) ---
-    # Groq (OpenAI-compatible) powers the natural-language "Alexa says…" line
-    # generated from the detected context. Leave the key empty to fall back to a
-    # deterministic, template-based sentence (no network call). Drop your key in
-    # the backend .env as GROQ_API_KEY=... to switch on real LLM phrasing.
+    # Controls which LLM backend generates the natural-language "Alexa says…"
+    # line. Set LLM_PROVIDER to "bedrock" for AWS Bedrock or "groq" for Groq.
+    # If the chosen provider is unavailable, falls back to the other, then to
+    # a deterministic template (no network call). The notification ALWAYS shows.
+    llm_provider: str = "groq"  # "groq" or "bedrock"
+
+    # Groq (OpenAI-compatible)
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
     groq_chat_url: str = "https://api.groq.com/openai/v1/chat/completions"
+
+    # AWS Bedrock (uses boto3 credentials from environment)
+    bedrock_model_id: str = "nvidia.nemotron-super-3-120b"
+
     # Hard ceiling on the LLM call so a slow/unreachable API never blocks the UI.
     narrator_timeout_seconds: float = 12.0
 

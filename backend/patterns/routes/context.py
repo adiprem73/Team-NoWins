@@ -114,8 +114,26 @@ async def narrate_context(context: ContextObject) -> NarrationResponse:
 
     The frontend calls this right after evaluating a scenario: it passes the
     ContextObject it just received and shows the returned sentence as an
-    Alexa-style notification. Uses Groq when ``GROQ_API_KEY`` is set, otherwise
-    a deterministic fallback sentence (so the notification always appears).
+    Alexa-style notification. Uses the configured LLM_PROVIDER (bedrock or groq),
+    otherwise a deterministic fallback sentence (so the notification always appears).
     """
     result = await narrator.narrate(context)
     return NarrationResponse(**result)
+
+
+@router.get("/narrate/debug")
+def narrate_debug() -> dict:
+    """Diagnostic endpoint — shows which LLM provider is configured and whether
+    credentials are available. Never reveals actual secrets."""
+    from patterns.app.config import get_settings
+
+    settings = get_settings()
+    return {
+        "llm_provider": settings.llm_provider,
+        "groq_api_key_set": bool(settings.groq_api_key),
+        "groq_api_key_prefix": settings.groq_api_key[:8] + "..." if settings.groq_api_key else "",
+        "groq_model": settings.groq_model,
+        "bedrock_model_id": settings.bedrock_model_id,
+        "aws_region": settings.aws_region,
+        "narrator_timeout_seconds": settings.narrator_timeout_seconds,
+    }

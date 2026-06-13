@@ -5,10 +5,12 @@ Design
 ======
 * The deterministic pattern engine decides *what* is true (anomalies, context
   type). This module only decides *how to say it* in friendly language.
-* Powered by Groq (OpenAI-compatible chat completions). If ``GROQ_API_KEY`` is
-  unset, or the API errors / times out, we fall back to a template sentence so
-  the notification ALWAYS appears — the feature degrades gracefully and never
-  blocks the UI.
+* Supports two LLM backends controlled by ``LLM_PROVIDER``:
+  - ``"bedrock"`` — AWS Bedrock (Converse API) using the configured model.
+  - ``"groq"`` — Groq (OpenAI-compatible chat completions).
+* If the chosen provider errors / times out, we fall back to the other, then
+  to a template sentence so the notification ALWAYS appears — the feature
+  degrades gracefully and never blocks the UI.
 * Pure function of the context object → easy to test and cache.
 """
 from __future__ import annotations
@@ -17,6 +19,7 @@ import json
 import logging
 import re
 
+import boto3
 import httpx
 
 from patterns.app.config import get_settings
@@ -331,30 +334,17 @@ def _build_user_message(context: ContextObject) -> str:
     return "\n".join(lines)
 
 
-async def narrate(context: ContextObject) -> dict:
-    """Produce an Alexa-style spoken line + a detailed 'why' explanation.
-
-    Returns ``{"alexa_response", "explanation", "llm_powered", "reasoning"}``.
-    Always succeeds — falls back to deterministic text if the LLM is
-    unavailable.
-    """
-    settings = get_settings()
-    fallback = _fallback_line(context)
-    fallback_explanation = _fallback_explanation(context)
-
+async def _call_groq(system: str, user_msg: str, settings) -> dict | None:
+    """Call Groq and return parsed JSON response, or None on failure."""
     if not settings.groq_api_key:
-        return {
-            "alexa_response": fallback,
-            "explanation": fallback_explanation,
-            "llm_powered": False,
-            "reasoning": "GROQ_API_KEY not set — using deterministic fallback phrasing.",
-        }
+        logger.info("Groq skipped: GROQ_API_KEY not set.")
+        return None
 
     payload = {
         "model": settings.groq_model,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _build_user_message(context)},
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
         ],
         "temperature": 0.6,
         "max_tokens": 500,
@@ -372,33 +362,106 @@ async def narrate(context: ContextObject) -> dict:
                 json=payload,
             )
         if resp.status_code != 200:
-            logger.error("Narrator Groq error %s: %s", resp.status_code, resp.text[:200])
-            return {
-                "alexa_response": fallback,
-                "explanation": fallback_explanation,
-                "llm_powered": False,
-                "reasoning": f"Groq returned {resp.status_code}; used fallback.",
-            }
+            logger.error("Narrator Groq error %s: %s", resp.status_code, resp.text[:300])
+            return None
         raw = resp.json()["choices"][0]["message"]["content"].strip()
-        try:
-            parsed = json.loads(raw)
+        parsed = json.loads(raw)
+        return parsed
+    except json.JSONDecodeError:
+        logger.warning("Groq returned non-JSON; raw=%s", raw[:200] if raw else "")
+        return None
+    except Exception as e:
+        logger.error("Groq call failed: %s: %s", type(e).__name__, e)
+        return None
+
+
+async def _call_bedrock(system: str, user_msg: str, settings) -> dict | None:
+    """Call AWS Bedrock Converse API and return parsed JSON response, or None."""
+    import asyncio
+
+    try:
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name=settings.aws_region,
+        )
+
+        # Bedrock Converse API — works with all Bedrock-supported models
+        # including nvidia.nemotron-super-3-120b
+        response = await asyncio.to_thread(
+            client.converse,
+            modelId=settings.bedrock_model_id,
+            system=[{"text": system}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"text": user_msg + "\n\nRespond with a JSON object exactly like: {\"alexa_response\": \"...\", \"explanation\": \"...\"}"}],
+                }
+            ],
+            inferenceConfig={
+                "temperature": 0.6,
+                "maxTokens": 500,
+            },
+        )
+
+        raw = response["output"]["message"]["content"][0]["text"].strip()
+        # Try to extract JSON from the response (model may wrap in markdown)
+        json_match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if json_match:
+            parsed = json.loads(json_match.group())
+            return parsed
+        logger.warning("Bedrock response has no JSON; raw=%s", raw[:200])
+        return None
+    except Exception as e:
+        logger.error("Bedrock call failed: %s: %s", type(e).__name__, e)
+        return None
+
+
+async def narrate(context: ContextObject) -> dict:
+    """Produce an Alexa-style spoken line + a detailed 'why' explanation.
+
+    Returns ``{"alexa_response", "explanation", "llm_powered", "reasoning"}``.
+    Always succeeds — falls back to deterministic text if the LLM is
+    unavailable.
+    """
+    settings = get_settings()
+    fallback = _fallback_line(context)
+    fallback_explanation = _fallback_explanation(context)
+
+    user_msg = _build_user_message(context)
+    provider = (settings.llm_provider or "groq").lower().strip()
+
+    # Try providers in order of preference
+    if provider == "bedrock":
+        providers = [("bedrock", _call_bedrock), ("groq", _call_groq)]
+    else:
+        providers = [("groq", _call_groq), ("bedrock", _call_bedrock)]
+
+    for name, call_fn in providers:
+        logger.info("Narrator: trying %s...", name)
+        parsed = await call_fn(SYSTEM_PROMPT, user_msg, settings)
+        if parsed:
             line = (parsed.get("alexa_response") or "").strip()
             explanation = (parsed.get("explanation") or "").strip()
-        except (json.JSONDecodeError, AttributeError):
-            # Model didn't return clean JSON — treat the whole thing as the line.
-            line = raw.strip('"').strip()
-            explanation = ""
-        return {
-            "alexa_response": line or fallback,
-            "explanation": explanation or fallback_explanation,
-            "llm_powered": bool(line),
-            "reasoning": "Phrased by Groq LLM from the detected context.",
-        }
-    except Exception as e:  # never let narration break the request
-        logger.error("Narrator error %s: %s", type(e).__name__, e)
-        return {
-            "alexa_response": fallback,
-            "explanation": fallback_explanation,
-            "llm_powered": False,
-            "reasoning": f"Narrator exception ({type(e).__name__}); used fallback.",
-        }
+            if line:
+                return {
+                    "alexa_response": line,
+                    "explanation": explanation or fallback_explanation,
+                    "llm_powered": True,
+                    "reasoning": f"Phrased by {name} LLM from the detected context.",
+                }
+
+    # Both providers failed or neither is configured
+    reason_parts = []
+    if not settings.groq_api_key:
+        reason_parts.append("GROQ_API_KEY not set")
+    if provider == "bedrock":
+        reason_parts.append("Bedrock call failed (check AWS credentials/model access)")
+    reason = "; ".join(reason_parts) if reason_parts else "All LLM providers failed"
+    reason += " — using deterministic fallback."
+
+    return {
+        "alexa_response": fallback,
+        "explanation": fallback_explanation,
+        "llm_powered": False,
+        "reasoning": reason,
+    }
