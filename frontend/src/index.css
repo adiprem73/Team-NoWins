@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* ── Pattern Recognition view (merged from the standalone patterns app) ── */
+
+/* Pulsing red glow for anomalous devices */
+@keyframes anomalyPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
+    }
+
+    50% {
+        box-shadow: 0 0 22px 6px rgba(239, 68, 68, 0.65);
+    }
+}
+
+.anomaly-pulse {
+    animation: anomalyPulse 1.4s ease-in-out infinite;
+}
+
+/* Soft glow for active (ON) devices */
+.active-glow {
+    box-shadow: 0 0 16px 2px rgba(56, 189, 248, 0.45);
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 8px;
+}

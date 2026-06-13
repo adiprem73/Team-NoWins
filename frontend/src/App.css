@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+:root {
+  --mood-calm: #E6E6FA;
+  --mood-happy: #FFD700;
+  --mood-stressed: #4A90D9;
+  --mood-anxious: #7B68EE;
+  --mood-frustrated: #48D1CC;
+  --mood-sad: #FF8C00;
+  --mood-energetic: #00FF7F;
+  --mood-tired: #FF8C00;
+  --mood-neutral: #FFFFFF;
+}
+
+body {
+  background: #0f0f23;
+  color: #e2e8f0;
+  font-family: "Inter", system-ui, sans-serif;
+}

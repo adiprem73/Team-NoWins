@@ -1,0 +1,4 @@
+# Dev / test dependencies (patterns service test suite)
+pytest==8.3.4
+moto[dynamodb]==5.0.27
+freezegun==1.5.1
