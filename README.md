@@ -92,7 +92,7 @@ Learns daily routines from IoT events using pure **statistics** (time / sequence
 ### 🛡️ Adaptive Safety
 A **vulnerability-aware overlay** that re-reads every concern by *who's home*. Produces a live **safety score** + emergency detection (SOS, health, inactivity).
 
-`elderly ×2.0` · `0–100 score`
+`vulnerability_score ×2.0 if elderly` · `0–100 score`
 
 </td>
 </tr>
