@@ -28,11 +28,12 @@
 3. [🌍 Real-World Scenarios](#-real-world-scenarios)
 4. [⚙️ How It Works](#️-how-it-works)
 5. [📊 Pattern Recognition Engine](#-pattern-recognition-engine)
-6. [🛡️ Adaptive Safety Intelligence](#️-adaptive-safety-intelligence)
-7. [🏛️ Architecture](#️-architecture)
-8. [🧰 Tech Stack](#-tech-stack)
-9. [🚀 Setup](#-setup)
-10. [📚 Further Reading](#-further-reading)
+6. [� Mood & Cognitive-Load Engine](#-mood--cognitive-load-engine)
+7. [🛡️ Adaptive Safety Intelligence](#️-adaptive-safety-intelligence)
+8. [🏛️ Architecture](#️-architecture)
+9. [🧰 Tech Stack](#-tech-stack)
+10. [🚀 Setup](#-setup)
+11. [📚 Further Reading](#-further-reading)
 
 ---
 
@@ -233,6 +234,122 @@ A pattern is kept only if it occurs **≥ 3 times** *and* scores **≥ 0.6**. No
 
 ---
 
+## 😌 Mood & Cognitive-Load Engine
+
+This is the **feeling** half of Awaas AI. Two services work together — one reads
+*what you say*, the other reads *how you behave* — and the orchestrator fuses
+them (plus the household patterns above) into one LLM decision that adapts the room.
+
+```mermaid
+flowchart LR
+    subgraph MO["😌 Mood Service · :8001"]
+        direction TB
+        AUD["🎙️ Audio"] --> STT["Whisper STT<br/>(Groq)"]
+        STT --> MTX["Text"]
+        TXT["⌨️ Typed text"] --> MTX
+        MTX --> MLLM["LLM mood analysis<br/>(Bedrock → Groq)"]
+        MLLM --> MOUT["mood · confidence<br/>cognitive_load · features"]
+    end
+
+    subgraph BE["👆 Behaviour Service · :8002"]
+        direction TB
+        SIG["scroll · tap<br/>idle · swipe"] --> SCORE["agitation scoring<br/>(deterministic)"]
+        SCORE --> BOUT["cognitive_load<br/>agitation · patterns"]
+    end
+
+    ORCH["🧠 Orchestrator · :8005<br/>Action Engine LLM"]
+    DEV["💡 Devices · :8004<br/>preset + overrides"]
+    OUT["🏠 Lights · Music · Notifications<br/>+ Alexa voice"]
+
+    MOUT --> ORCH
+    BOUT --> ORCH
+    ORCH --> DEV --> OUT
+
+    classDef mood fill:#16301c,stroke:#3fb950,color:#fff;
+    classDef beh fill:#16263d,stroke:#4a90d9,color:#fff;
+    classDef orch fill:#2d1f3d,stroke:#a371f7,color:#fff;
+    classDef out fill:#3d2c14,stroke:#e3b341,color:#fff;
+    class AUD,STT,MTX,TXT,MLLM,MOUT mood;
+    class SIG,SCORE,BOUT beh;
+    class ORCH orch;
+    class DEV,OUT out;
+```
+
+### 🎙️ Mood Service — *what you say*
+
+Reads emotion from speech or text. Audio is transcribed by **Groq Whisper**
+(`whisper-large-v3-turbo`), then the text is sent to the LLM (**Bedrock
+Nemotron** primary → **Groq LLaMA** fallback) which returns a structured
+judgement — never free-form prose:
+
+```json
+{ "mood": "stressed", "confidence": 0.85,
+  "cognitive_load": "high",
+  "speech_features": { "sentiment": "negative", "complexity": "simple", "urgency": "high" } }
+```
+
+**9 mood states** — each maps to a device preset:
+
+| Mood | Light | Music | Notifications |
+|------|-------|-------|---------------|
+| Calm | lavender, 50% | classical | normal |
+| Happy | bright white, 75% | upbeat | normal |
+| Stressed | cool blue, 40% | ambient | reduced |
+| Anxious | lavender, 35% | nature sounds | DND |
+| Frustrated | teal, 45% | lo-fi | reduced |
+| Sad | warm gold, 55% | uplifting | normal |
+| Energetic | green, 80% | electronic | normal |
+| Tired | deep orange, 30% | sleep | DND |
+| Neutral | white, 65% | — | normal |
+
+### 👆 Behaviour Service — *how you behave*
+
+Reads **cognitive load** from on-device interaction signals — purely
+deterministic scoring, no LLM. Each signal is scored 0–1 for agitation, then
+mapped to a load level:
+
+| Signal | Reads as |
+|--------|----------|
+| fast / aggressive **scroll** | frustration, searching |
+| rapid **tap** | impatience, agitation |
+| prolonged **idle** | fatigue, distraction *(lowers agitation)* |
+| erratic **swipe** | overwhelm |
+
+Agitation → **4 cognitive-load levels** that *override* the mood preset:
+
+| Level | Effect on the room |
+|-------|--------------------|
+| Low | +5% brightness / +5% volume |
+| Moderate | no change |
+| High | −10% brightness, −10% volume, reduced notifications |
+| Overloaded | −20% brightness, −15% volume, full DND |
+
+### 🧠 The Orchestrator (the brain)
+
+The orchestrator's `/process` pipeline calls each service over HTTP, then hands
+**everything** to the **Action Engine LLM**:
+
+```
+mood + confidence + speech features      (Mood :8001)
+  + cognitive load + agitation + patterns (Behaviour :8002)
+  + household anomalies / who's home       (Patterns :8003)
+  + room + time of day
+        → Action Engine LLM (Bedrock → Groq → preset fallback)
+        → { actions, alexa_response, reasoning, mood_assessment }
+        → stored to SmartHome_MoodHistory
+```
+
+Key behaviours baked into the prompt:
+- **Behaviour overrides speech** — if you *say* "I'm fine" but tap aggressively, it trusts the behaviour.
+- **Tone matches state** — terse when you're stressed (*"On it."*), warm and longer when you're calm.
+- **Graceful fallback** — if both LLMs are unreachable, the [Devices service](backend/services/devices/controller.py) computes the preset + cognitive override deterministically, so the room *always* responds.
+
+Every change is persisted to the `SmartHome_MoodHistory` table (mood, load,
+confidence, trigger source, what Alexa said) and rendered as a colour-coded
+timeline on the dashboard.
+
+---
+
 ## 🛡️ Adaptive Safety Intelligence
 
 Safety is an **independent twin** of the pattern engine (its own service on `:8006`) that adds **one powerful new idea**: *who is home, and how vulnerable are they?*
@@ -403,7 +520,7 @@ flowchart LR
     class O1,O2,O3,O4 out;
 ```
 
-**Legend** — `──▶` synchronous flow · `╌╌▶` external / fallback call · `⚡` DynamoDB cache (native TTL).
+**Legend** — `──▶️` synchronous flow · `╌╌▶️` external / fallback call · `⚡` DynamoDB cache (native TTL).
 
 **Cross-cutting shared services** (observe & support every layer):
 
