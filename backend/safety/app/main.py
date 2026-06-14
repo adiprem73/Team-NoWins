@@ -60,12 +60,20 @@ async def _extraction_scheduler() -> None:
 async def lifespan(app: FastAPI):
     # In local/dev we ensure tables exist on startup. In AWS the tables are
     # created by IaC, and create_tables() is a no-op because they already exist.
-    try:
-        from safety.dynamodb.tables import create_tables
+    # Retry a few times because DynamoDB Local may not be ready immediately.
+    for attempt in range(5):
+        try:
+            from safety.dynamodb.tables import create_tables
 
-        create_tables()
-    except Exception:  # pragma: no cover - never block startup on table check
-        pass
+            created = create_tables()
+            if created:
+                logger.info("Created DynamoDB tables: %s", created)
+            break
+        except Exception as e:
+            logger.warning("Table creation attempt %d failed: %s", attempt + 1, e)
+            if attempt < 4:
+                import time
+                time.sleep(2)
 
     # Start the in-process extraction scheduler (dormant if unconfigured).
     task = asyncio.create_task(_extraction_scheduler())
