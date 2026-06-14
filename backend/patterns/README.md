@@ -1,93 +1,83 @@
-# Context-Aware Smart Home Intelligence Platform
+# 📊 Pattern Recognition Service
 
-A containerised service that turns raw household device events into an
-**AI-ready context object**. The system learns behaviour patterns
-**deterministically** (no LLM) and produces the structured context that the
-MoodSense orchestrator hands to **Amazon Bedrock** for reasoning.
+> Part of **Awaas AI** · runs on **port 8003**
+
+A FastAPI microservice that turns raw household device events into an
+**AI-ready context object**. It learns behaviour patterns **deterministically**
+(no ML, no LLM) and produces the structured context that the Awaas orchestrator
+and LLM narrator turn into natural Alexa-style suggestions.
 
 ```
-Device Events → ALB → ECS (FastAPI) → DynamoDB Events
-       → Pattern Extraction (in-process scheduler) → DynamoDB Patterns
-       → Household State (DynamoDB) → Context Builder → Context Object
-       → [ Orchestrator → Amazon Bedrock ]
+Device Events → DynamoDB Events
+   → Pattern Extraction (in-process scheduler) → DynamoDB Patterns
+   → Household State (DynamoDB) → Context Builder → Context Object
+   → [ LLM Narrator → Alexa voice ]
 ```
 
 ---
 
-## 1. Architecture
+## 1 · Core philosophy
 
-| Concern | Service | Why |
-|---|---|---|
-| Ingest / read API | **ALB + ECS (FastAPI/uvicorn)** | One containerised ASGI app behind the shared load balancer. |
-| Event store | **DynamoDB** `SmartHome_Events` | Append-only, time-ordered per household. |
-| Live snapshot | **DynamoDB** `SmartHome_HouseholdState` | One mutable doc per home. |
-| Learned patterns | **DynamoDB** `SmartHome_Patterns` | Deterministic engine output. |
-| Scheduled learning | **In-process scheduler** | Re-runs the extraction job on a fixed interval inside the service. |
-| Reasoning | **Amazon Bedrock** (via orchestrator) | Consumes the context object. |
-
-### Core philosophy
 Pattern discovery is **deterministic and explainable**:
-`Events → Pattern Extraction → Household Knowledge → Context Builder → Bedrock`.
-We never ask an LLM to *discover* patterns.
-
----
-
-## 2. DynamoDB table designs
-
-**`SmartHome_Events`** — PK `household_id` (HASH), `sk` (RANGE = `"{ISO-timestamp}#{event_id}"`).
-The composite sort key keeps events naturally time-ordered *and* unique, so
-"last 30 days for H001" is a single efficient `Query`.
-
-**`SmartHome_HouseholdState`** — PK `household_id`. One item per home holding
-`people_home`, `active_devices`, `device_on_since`.
-
-**`SmartHome_Patterns`** — PK `household_id` (HASH), `pattern_id` (RANGE).
-Stores time / sequence / duration patterns with confidence + support.
-
-All tables use **on-demand (PAY_PER_REQUEST)** billing — ideal for spiky IoT
-traffic with zero capacity planning.
-
----
-
-## 3. Folder structure
 
 ```
-backend/
-├── app/                 # FastAPI app + config + DI
-│   ├── config.py        # env-driven settings
-│   └── main.py          # app factory + in-process extraction scheduler
+Events → Pattern Extraction → Household Knowledge → Context Builder → LLM (phrasing only)
+```
+
+We never ask an LLM to *discover* patterns — it only phrases the already-computed
+`ContextObject`.
+
+---
+
+## 2 · DynamoDB tables
+
+| Table | Keys | Holds |
+|-------|------|-------|
+| `SmartHome_Events` | PK `household_id`, SK `{ISO-timestamp}#{event_id}` | append-only, time-ordered event log |
+| `SmartHome_HouseholdState` | PK `household_id` | live snapshot: `people_home`, `active_devices`, `device_on_since` |
+| `SmartHome_Patterns` | PK `household_id`, SK `pattern_id` | learned time / sequence / duration patterns + confidence |
+
+All tables use **on-demand (PAY_PER_REQUEST)** billing. Table names are
+overridable via environment variables (see [`app/config.py`](app/config.py)).
+
+---
+
+## 3 · Folder structure
+
+```
+patterns/
+├── app/                 # FastAPI factory + config + in-process scheduler
+│   ├── config.py        #   env-driven settings
+│   └── main.py          #   create_app() + _extraction_scheduler()
 ├── models/              # Pydantic models (events, state, patterns, context)
-├── routes/              # FastAPI routers (events, state, patterns, context)
-├── services/            # Business logic over DynamoDB + engine + builder
-├── pattern_engine/      # Deterministic extractors (time/sequence/duration)
-├── context_builder/     # Context assembly + anomaly detection
+├── routes/              # FastAPI routers (events, state, patterns, context, admin)
+├── logic/               # Business logic: event/state/pattern/context services + narrator
+├── pattern_engine/      # Deterministic extractors (time / sequence / duration / confidence)
+├── context_builder/     # Anomaly detection + context assembly
 ├── dynamodb/            # boto3 resource + table schemas
-├── scripts/             # create_tables.py, seed_data.py
-├── tests/               # pytest suite + sample_data.py
-├── Dockerfile           # container image (ECS task)
-├── docker-compose.yml   # DynamoDB Local
-└── requirements.txt
+├── scripts/             # create_tables.py, seed_data.py, demo scenarios
+└── tests/               # pytest suite (uses in-memory moto DynamoDB)
 ```
 
 ---
 
-## 4. API specification
+## 4 · API specification
 
 | Method | Path | Purpose |
-|---|---|---|
+|--------|------|---------|
 | `POST` | `/events` | Ingest one event; updates live state. |
 | `GET`  | `/events?household_id=&since=&limit=` | Query events (chronological). |
 | `GET`  | `/state/{household_id}` | Current household snapshot. |
-| `POST` | `/patterns/{household_id}/extract` | Run extraction now. |
+| `POST` | `/patterns/{household_id}/extract` | Run pattern extraction now. |
 | `GET`  | `/patterns/{household_id}` | List learned patterns. |
 | `GET`  | `/context/{household_id}` | **Build the AI-ready context object.** |
 | `GET`  | `/health` | Liveness. |
 
-Interactive docs at `/docs` (Swagger) when running locally.
+Interactive Swagger docs at `/docs` when running locally.
 
-### Example: ingest
+### Example — ingest an event
 ```bash
-curl -X POST localhost:8080/events -H 'Content-Type: application/json' -d '{
+curl -X POST localhost:8003/events -H 'Content-Type: application/json' -d '{
   "household_id": "H001",
   "device_id": "son_room_fan",
   "device_type": "fan",
@@ -97,7 +87,7 @@ curl -X POST localhost:8080/events -H 'Content-Type: application/json' -d '{
 }'
 ```
 
-### Example: context object (departure anomaly)
+### Example — context object (departure anomaly)
 ```json
 {
   "context_type": "departure_anomaly",
@@ -115,92 +105,86 @@ curl -X POST localhost:8080/events -H 'Content-Type: application/json' -d '{
 
 ---
 
-## 5. Pattern extraction algorithms (deterministic)
+## 5 · Pattern extraction (deterministic)
 
-* **Time-based** — group `(device, action)`, cluster time-of-day into 30-min
-  buckets, take the dominant bucket, score by support × consistency.
-* **Sequence-based** — slice the timeline into sessions (events within 10 min),
-  count repeated `device:action` signatures across days (captures the
-  "son leaves for college" routine).
-* **Duration-based** — pair each ON with the next OFF to learn typical runtime
-  (e.g. water motor ≈ 15 min) and its variance.
+| Extractor | Learns | Example |
+|-----------|--------|---------|
+| **Time-based** | clusters event time-of-day into 30-min buckets, takes the dominant bucket | *"living-room light ON around 19:00"* |
+| **Sequence-based** | repeated `device:action` chains within a 10-min session | *"door OPEN → fan OFF → light OFF"* |
+| **Duration-based** | pairs each ON with the next OFF | *"water motor runs ~15 min"* |
 
-**Confidence** = `support_score × consistency_score`, both in `[0,1]`
-(`pattern_engine/confidence.py`). No randomness, fully reproducible.
+**Confidence** = `support × consistency`, both in `[0,1]`
+([`pattern_engine/confidence.py`](pattern_engine/confidence.py)). A pattern is
+kept only if it occurs **≥ 3 times** *and* scores **≥ 0.6**.
 
-### Anomaly detection (`context_builder/anomaly.py`)
-* `device_left_on` — active device past its learned OFF time + grace window.
-* `duration_exceeded` — running > `usual × 2` (water-motor example).
+### Anomaly detection ([`context_builder/anomaly.py`](context_builder/anomaly.py))
+
+| Detector | Fires when |
+|----------|-----------|
+| `device_left_on` | active device past its learned OFF time + 60-min grace |
+| `duration_exceeded` | running longer than `usual × 2.0` |
+| `device_active_too_long` | absolute 12-hour safety-net (no duration pattern) |
+| `missed_routine` | a high-confidence ON routine's window passed without happening |
+| `unexpected_activity` | entry/activity far outside the learned schedule |
 
 ---
 
-## 6. Local development setup
+## 6 · Local development
+
+Run from the `backend/` directory (so the `patterns` package imports resolve):
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
 
-# 1) Start DynamoDB Local
-docker compose up -d
+# 1) Start DynamoDB Local (or: moto_server -p 8100)
+docker run -p 8100:8000 amazon/dynamodb-local
 
-# 2) Configure environment
-cp .env.example .env          # DYNAMODB_ENDPOINT_URL=http://localhost:8000
+# 2) Point at it (in backend/.env)
+#    DYNAMODB_ENDPOINT_URL=http://localhost:8100
 
 # 3) Create tables + seed 30 days of data and extract patterns
-python scripts/create_tables.py
-python scripts/seed_data.py
+python patterns/scripts/create_tables.py
+python patterns/scripts/seed_data.py
 
 # 4) Run the API
-uvicorn app.main:app --reload --port 8080
-# open http://localhost:8080/docs
+uvicorn patterns.app.main:app --reload --port 8003
+# open http://localhost:8003/docs
 
-# 5) See the context object (departure anomaly demo)
-curl localhost:8080/context/H001
+# 5) See the context object
+curl localhost:8003/context/H001
 ```
 
-### Run tests (no AWS needed — uses moto in-memory DynamoDB)
+### Run the tests (no AWS needed — uses in-memory moto DynamoDB)
 ```bash
-pytest
+cd backend && pytest patterns/
 ```
 
 ---
 
-## 7. AWS deployment (ECS + ALB)
+## 7 · Configuration knobs ([`app/config.py`](app/config.py))
 
-The service ships as a container ([`Dockerfile`](Dockerfile)) and runs as an
-ECS task behind the shared Application Load Balancer — the same deployment
-model as every other backend service in the platform.
-
-```bash
-cd backend
-docker build -t smarthome-patterns .
-# push to ECR, then run as an ECS service behind the ALB at path /patterns/*
-```
-
-Provision once (via the platform IaC):
-* 3 DynamoDB tables (on-demand),
-* an **ECS service** running this image, fronted by the **ALB** (target group
-  routed on `/patterns/*`),
-* the deterministic extraction job runs **in-process** on a fixed interval —
-  enable it by setting `SCHEDULED_HOUSEHOLD_IDS` (and optionally
-  `EXTRACTION_INTERVAL_HOURS`) on the task.
-
-After deploy, the ALB host is your REST endpoint:
-```bash
-curl "$ALB_URL/patterns/context/H001"
-```
-
-Seed data by POSTing events to `$ALB_URL/patterns/events`, then trigger
-extraction on demand:
-```bash
-curl -X POST "$ALB_URL/patterns/H001/extract"
-```
+| Setting | Default | Purpose |
+|---------|:-------:|---------|
+| `analysis_window_days` | 30 | days of history analysed |
+| `time_bucket_minutes` | 30 | clustering granularity |
+| `min_pattern_occurrences` | 3 | minimum repeats to learn a pattern |
+| `min_confidence` | 0.6 | threshold to accept a pattern |
+| `departure_grace_minutes` | 60 | how long past schedule before flagging |
+| `duration_anomaly_factor` | 2.0 | multiple of usual duration that triggers an alert |
+| `max_continuous_active_minutes` | 720 | absolute 12-hour safety-net |
+| `scheduled_household_ids` | *(empty)* | households the in-process scheduler re-learns |
+| `extraction_interval_hours` | 24 | how often the scheduler runs |
 
 ---
 
-## 8. What's intentionally NOT built
+## 8 · The boundary
 
-* **Amazon Bedrock reasoning / proactive suggestions** — this service stops once
-  the `ContextObject` is generated and validated. That object is the documented
-  hand-off boundary consumed by the MoodSense orchestrator.
+This service stops once the `ContextObject` is generated and validated. That
+object is the documented hand-off to the **LLM narrator** (Bedrock → Groq →
+deterministic template) which only *phrases* the result — see
+[`logic/narrator.py`](logic/narrator.py).
+
+> 🛡️ For the vulnerability-aware sibling of this engine, see the
+> [Adaptive Safety service](../safety/README.md).

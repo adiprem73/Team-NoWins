@@ -1,8 +1,8 @@
-# MoodSense AI — Complete Feature Documentation
+# Awaas AI — Complete Feature Documentation
 
 ## Application Overview
 
-MoodSense AI is a context-aware smart home intelligence platform built for Indian households. It connects to Amazon Alexa and uses a combination of deterministic pattern recognition, LLM-powered natural language generation, and real-time signal analysis to create an adaptive home that responds to its residents' moods, routines, and safety needs.
+Awaas AI is a context-aware smart home intelligence platform built for Indian households. It connects to Amazon Alexa and uses a combination of deterministic pattern recognition, LLM-powered natural language generation, and real-time signal analysis to create an adaptive home that responds to its residents' moods, routines, and safety needs.
 
 The platform has three core intelligence pillars:
 
@@ -20,7 +20,7 @@ The platform has three core intelligence pillars:
 - **Database**: Amazon DynamoDB (Local for dev, AWS for production)
 - **LLM Providers**: AWS Bedrock (Nvidia Nemotron Super 3 120B) primary, Groq (LLaMA 3.3 70B) fallback
 - **Speech-to-Text**: Groq Whisper Large V3 Turbo
-- **Infrastructure**: Docker Compose (8 containers + DynamoDB Local)
+- **Infrastructure**: Docker Compose (8 services + DynamoDB Local)
 
 ---
 
@@ -36,8 +36,8 @@ Detects the emotional state of household members through voice analysis and beha
 |---------|------|------|
 | Mood Analysis | 8001 | Speech-to-text + emotion detection |
 | Behavior Tracking | 8002 | Interaction pattern analysis |
+| Device Control | 8004 | Environment preset computation |
 | Orchestrator (Brain) | 8005 | Unifies all signals, calls the Action Engine LLM |
-| Adaptive Safety Intelligence | 8005 | Leanrs by pattern identification from HouseHold activity logs and then detect vulenrabilities regarding safety of vulnerable family members |
 
 ### Pipeline (end-to-end)
 
@@ -453,12 +453,12 @@ The three features share infrastructure but operate independently:
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | Frontend | React 19 + Vite 8 + TailwindCSS 4 | Interactive dashboards |
-| Backend | Python 3.13 + FastAPI | Async microservices |
+| Backend | Python 3.11+ + FastAPI | Async microservices |
 | Database | Amazon DynamoDB (Local + AWS) | Event storage, state, patterns, profiles |
 | LLM (Primary) | AWS Bedrock — Nvidia Nemotron Super 3 120B | Mood analysis, action decisions, narration |
 | LLM (Fallback) | Groq — LLaMA 3.3 70B Versatile | Automatic failover when Bedrock throttles |
 | STT | Groq Whisper Large V3 Turbo | Audio transcription |
-| Infrastructure | Docker Compose (9 containers) | Local development + demo deployment |
+| Infrastructure | Docker Compose (8 services + DynamoDB Local) | Local development + demo deployment |
 | API Gateway | FastAPI reverse proxy | Unified routing + CORS |
 
 ---

@@ -1,311 +1,491 @@
-# Awaas AI — AI-Powered Smart Home Mood & Safety Platform
+<div align="center">
 
-An intelligent system that understands how you feel and keeps your home safe. Awaas AI detects mood and cognitive load through speech, behavioral patterns, and device usage history — then automatically adjusts your environment and monitors vulnerable family members.
+# 🏠 Awaas AI
+
+### A context-aware smart-home brain that understands how you **feel**, learns how you **live**, and protects who you **love**.
+
+*Built for the Indian household — connected to Amazon Alexa, powered by deterministic intelligence and LLM reasoning.*
+
+<br/>
+
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![DynamoDB](https://img.shields.io/badge/DynamoDB-NoSQL-4053D6?logo=amazondynamodb&logoColor=white)
+![AWS Bedrock](https://img.shields.io/badge/AWS%20Bedrock-Nemotron-FF9900?logo=amazonaws&logoColor=white)
+![Groq](https://img.shields.io/badge/Groq-LLaMA%203.3-F55036)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+
+</div>
 
 ---
 
-## Table of Contents
+## 📑 Table of Contents
 
-- [Architecture](#architecture)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Services](#services)
-- [Data Flow](#data-flow)
-- [API Endpoints](#api-endpoints)
-- [Getting Started](#getting-started)
-- [Deployment](#deployment)
-- [Team](#team)
+1. [🏠 Problem & Solution](#-problem--solution)
+2. [⭐ Core Features](#-core-features)
+3. [🌍 Real-World Scenarios](#-real-world-scenarios)
+4. [⚙️ How It Works](#️-how-it-works)
+5. [📊 Pattern Recognition Engine](#-pattern-recognition-engine)
+6. [🛡️ Adaptive Safety Intelligence](#️-adaptive-safety-intelligence)
+7. [🏛️ Architecture](#️-architecture)
+8. [🧰 Tech Stack](#-tech-stack)
+9. [🚀 Setup](#-setup)
+10. [📚 Further Reading](#-further-reading)
 
 ---
 
-## Architecture
+## 🏠 Problem & Solution
+
+### The Problem
+
+A "smart home" today is just a collection of **dumb switches with an app**. It does exactly what you tell it — nothing more. It has no idea:
+
+- 😟 …that you came home **stressed** and the bright white lights are making it worse.
+- 🔥 …that the **gas stove** has been on for 45 minutes when it usually runs for 15.
+- 👵 …that **Grandma**, living alone, hasn't moved since her 6:30 AM wake-up routine — and it's now noon.
+- 💡 …that someone rushed out and left the **son's room fan** running all day.
+
+In a country of **joint families** — elderly parents living independently, children home from school alone, working couples, domestic help on schedules — a home that *cannot notice* is a home that *cannot care*.
+
+### The Solution
+
+**Awaas AI** turns a passive house into an **attentive companion**. It fuses three streams of understanding into one decision-making brain:
+
+| It understands… | …by | …so it can |
+|---|---|---|
+| **How you feel** 😌 | analysing your voice & on-device behaviour | adapt lights, music & notifications to your mood |
+| **How you live** 📊 | learning device routines deterministically over 30 days | notice when something is *off* — left on, missed, or running too long |
+| **Who you love** 🛡️ | layering a vulnerability lens over every anomaly | escalate a small risk into an urgent alert when a vulnerable person is alone |
+
+> **The core philosophy:** the system *discovers what is true* **deterministically** (statistics, no ML black box), and only uses an **LLM to phrase it** in natural, caring language. The AI never decides reality — it only narrates it.
+
+---
+
+## ⭐ Core Features
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 😌 Mood-Based Adaptation
+Detects emotion from **speech** (Whisper → LLM) and **behaviour** (scroll/tap/idle), then auto-adjusts **lights, music & notifications**.
+
+`9 moods` · `4 cognitive-load levels`
+
+</td>
+<td width="33%" valign="top">
+
+### 📊 Pattern Recognition
+Learns daily routines from IoT events using pure **statistics** (time / sequence / duration). Flags **anomalies** with explainable confidence.
+
+`no ML` · `fully auditable`
+
+</td>
+<td width="33%" valign="top">
+
+### 🛡️ Adaptive Safety
+A **vulnerability-aware overlay** that re-reads every concern by *who's home*. Produces a live **safety score** + emergency detection (SOS, health, inactivity).
+
+`elderly ×2.0` · `0–100 score`
+
+</td>
+</tr>
+</table>
+
+**Plus:**
+- 🗣️ **Natural Alexa voice** — every alert is spoken in caring, human language (LLM-generated, never templated when online).
+- 🔌 **Dual-provider resilience** — AWS Bedrock primary → Groq fallback → deterministic fallback. *It never fails silently.*
+- 🇮🇳 **Indian-context first** — water motors, gas stoves, pooja routines, joint-family vulnerability, domestic-help schedules.
+
+---
+
+## 🌍 Real-World Scenarios
+
+> *Each scenario is a real, runnable demo in the app.*
+
+#### 1. 😮‍💨 "I'm fine." *(but you're not)*
+You tell Alexa you're fine, but you're scrolling fast and tapping hard. **Behaviour overrides speech** → the room dims to a calm blue, lo-fi plays softly, notifications go quiet.
+
+#### 2. 🔥 The forgotten gas stove
+The kitchen gas stove has been running **70 minutes** — usual is ~20. Pattern engine flags `duration_exceeded`. Grandma is home alone (×2.0) → escalated to **critical**. *"The gas stove has been left on far too long — I'm shutting it off and alerting the family."*
+
+#### 3. 👵 The silent morning
+Grandpa usually moves around by 6:30 AM. It's now past his window with **no activity ping**. → `inactivity` anomaly → **Care Alert**. The family is notified before anyone even worries.
+
+#### 4. 🪟 An open window at midnight
+The bedroom window is still open at 23:30 (night window 22:00–06:00). → `unsafe_at_night`. With an elderly resident alone, it's a **security concern** → *"I've closed and locked the window and notified the family."*
+
+#### 5. 💡 Rushed out, fan left on
+The son's room fan is still ON, hours past its learned 9:00 AM OFF time. → `device_left_on`. A gentle suggestion appears on the Patterns dashboard.
+
+#### 6. 🆘 A fall at 3 AM
+The wearable fires an `SOS` event. → instant **Emergency** status, score crashes, emergency contacts alerted. No routine analysis needed — this jumps the queue.
+
+---
+
+## ⚙️ How It Works
+
+At the highest level, **everything is one flow**: raw signals come in, deterministic engines decide *what is true*, and an LLM decides *how to say it*.
+
+```mermaid
+flowchart LR
+    subgraph IN["📥 Signals"]
+        V["🎙️ Voice"]
+        B["👆 Behaviour"]
+        E["🔌 Device events"]
+        P["👥 People profiles"]
+    end
+
+    subgraph BRAIN["🧠 Deterministic Intelligence"]
+        M["Mood Engine"]
+        PE["Pattern Engine"]
+        SO["Safety Overlay"]
+    end
+
+    L["🗣️ LLM Narrator<br/>(Bedrock → Groq)"]
+    OUT["🏠 Actions + Alexa voice<br/>lights · music · alerts"]
+
+    V --> M
+    B --> M
+    E --> PE
+    P --> SO
+    PE --> SO
+    M --> L
+    PE --> L
+    SO --> L
+    L --> OUT
+
+    classDef in fill:#1e3a5f,stroke:#4a90d9,color:#fff;
+    classDef brain fill:#1e4620,stroke:#3fb950,color:#fff;
+    classDef out fill:#3d1e5c,stroke:#a371f7,color:#fff;
+    class V,B,E,P in;
+    class M,PE,SO brain;
+    class L,OUT out;
+```
+
+**The two deepest rings — the Pattern Engine and the Safety Overlay — are explained next.**
+
+---
+
+## 📊 Pattern Recognition Engine
+
+The engine learns routines from **30 days of device events**, entirely with statistics — **no machine learning, fully explainable**.
+
+### Events → Patterns → Context
+
+```mermaid
+flowchart TB
+    A["📥 <b>EVENTS</b><br/>device · action · time"]
+    B["🗄️ <b>EVENT STORE</b><br/>30 days history"]
+    C["🧠 <b>PATTERN ENGINE</b><br/>Time · Sequence · Duration"]
+    D["📚 <b>LEARNED PATTERNS</b><br/>+ confidence"]
+    E["🏠 <b>CURRENT STATE</b><br/>who's home · what's ON"]
+    F["⚖️ <b>COMPARE</b><br/>patterns vs. now → anomalies"]
+    G["📦 <b>CONTEXT OBJECT</b>"]
+    H["🤖 <b>LLM NARRATOR</b>"]
+
+    A --> B --> C --> D
+    D --> F
+    E --> F
+    F --> G --> H
+
+    classDef ev fill:#1e3a5f,stroke:#4a90d9,color:#fff,stroke-width:2px;
+    classDef pat fill:#1e4620,stroke:#3fb950,color:#fff,stroke-width:2px;
+    classDef ctx fill:#5c3d1e,stroke:#d99e4a,color:#fff,stroke-width:2px;
+    classDef out fill:#3d1e5c,stroke:#a371f7,color:#fff,stroke-width:2px;
+    class A,B ev;
+    class C,D pat;
+    class E,F ctx;
+    class G,H out;
+```
+
+### The three extractors
+
+| Extractor | Learns | Example |
+|-----------|--------|---------|
+| **Time-based** | clusters event time-of-day into 30-min buckets | *"living-room light turns ON around 19:00"* |
+| **Sequence-based** | repeated ordered chains within a 10-min session | *"door OPEN → fan OFF → light OFF"* (departure) |
+| **Duration-based** | pairs each ON with the next OFF | *"water motor runs ~15 min, starting ~09:00"* |
+
+### Confidence — explainable by design
+
+$$\text{confidence} = \underbrace{\min\left(1, \frac{\text{occurrences}}{\text{window\_days}}\right)}_{\text{support}} \times \underbrace{\left(1 - \frac{\text{stddev}}{2 \times \text{tolerance}}\right)}_{\text{consistency}}$$
+
+A pattern is kept only if it occurs **≥ 3 times** *and* scores **≥ 0.6**. No randomness, fully reproducible.
+
+### The five anomaly detectors
+
+| Detector | Catches |
+|----------|---------|
+| `device_left_on` | a device still ON past its learned OFF time (+ 60-min grace) |
+| `duration_exceeded` | running longer than `usual × 2.0` (e.g. motor 45 vs 15 min) |
+| `device_active_too_long` | absolute 12-hour safety-net for devices with no duration pattern |
+| `missed_routine` | a high-confidence ON routine whose window passed without happening |
+| `unexpected_activity` | an entry/activity far outside the learned schedule |
+
+📄 **Deep dive:** [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) · [`backend/patterns/README.md`](backend/patterns/README.md)
+
+---
+
+## 🛡️ Adaptive Safety Intelligence
+
+Safety is an **independent twin** of the pattern engine (its own service on `:8006`) that adds **one powerful new idea**: *who is home, and how vulnerable are they?*
+
+```mermaid
+flowchart TB
+    F["⚖️ <b>ANOMALIES</b><br/>(pattern engine +<br/>night · inactivity · SOS)"]
+    P["👥 <b>PEOPLE PROFILES</b><br/>elderly · child · pregnant<br/>unwell · normal"]
+    S["🛡️ <b>SAFETY OVERLAY</b><br/>escalate severity by vulnerability<br/>→ score 0–100 + status"]
+    H["🤖 <b>LLM NARRATOR</b><br/>caring, urgent voice"]
+
+    F --> S
+    P --> S
+    S --> H
+
+    classDef ctx fill:#5c3d1e,stroke:#d99e4a,color:#fff,stroke-width:2px;
+    classDef saf fill:#5c1e2e,stroke:#f85149,color:#fff,stroke-width:2px;
+    classDef out fill:#3d1e5c,stroke:#a371f7,color:#fff,stroke-width:2px;
+    class F ctx;
+    class P,S saf;
+    class H out;
+```
+
+### Vulnerability weights
+
+| Person | Weight | | Person | Weight |
+|--------|:------:|---|--------|:------:|
+| 🧑 Normal adult | ×1.0 | | 🤰 Pregnant | ×1.8 |
+| 🧒 Child | ×1.7 | | 👵 Elderly | ×2.0 |
+| 🤒 Unwell | ×1.8 | | 🧑‍🦱 Capable adult present | ×0.6 *(mitigates)* |
+
+> The **same** open door is `low` severity with a fit adult home — but `critical` for an elderly person alone. Escalated rank = `round(base_rank × vulnerability_factor)`, clamped 0–4.
+
+### Extra safety detectors
+
+| Detector | Fires when |
+|----------|-----------|
+| 🌙 `unsafe_at_night` | door/window open during 22:00–06:00 |
+| 😴 `global_inactivity` | no activity for 4 h (warn) / 8 h (emergency) while someone's home |
+| ❤️ `health_alert` / 🆘 `sos` | wearable vital out of range, or panic button → instant **Emergency** |
+
+### Safety score & status
+
+Starts at **100**, deducts per escalated anomaly → `low −4` · `medium −12` · `high −28` · `critical −55`.
+
+| 🟢 Safe | 🟡 Inactive | 🟠 Needs Attention | 🔴 Emergency |
+|---------|-------------|--------------------|--------------|
+| ≥ 60, no high/critical | only inactivity-type | < 60 or any high/critical | SOS / health / global-inactivity / < 25 |
+
+📄 **Deep dive:** [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) · [`backend/safety/README.md`](backend/safety/README.md)
+
+---
+
+## 🏛️ Architecture
+
+A **microservices** platform behind an API Gateway — the same model AWS ALB path-routing would use in production.
+
+```mermaid
+flowchart TB
+    FE["⚛️ React Dashboard<br/>:5173"]
+    GW["🚪 API Gateway<br/>:8000"]
+
+    FE --> GW
+
+    subgraph SVC["Microservices (FastAPI)"]
+        MO["😌 Mood<br/>:8001"]
+        BE["👆 Behaviour<br/>:8002"]
+        PA["📊 Patterns<br/>:8003"]
+        DE["💡 Devices<br/>:8004"]
+        OR["🧠 Orchestrator<br/>:8005"]
+        SA["🛡️ Safety<br/>:8006"]
+    end
+
+    GW --> MO & BE & PA & DE & OR & SA
+    OR -.calls.-> MO & BE & PA & DE
+
+    DB[("🗄️ DynamoDB<br/>Events · State · Patterns<br/>MoodHistory · Profiles")]
+    LLM["☁️ Bedrock → Groq<br/>+ Whisper STT"]
+
+    PA --> DB
+    SA --> DB
+    OR --> DB
+    MO --> LLM
+    OR --> LLM
+    PA --> LLM
+    SA --> LLM
+
+    classDef fe fill:#1e3a5f,stroke:#4a90d9,color:#fff;
+    classDef gw fill:#3d2f1f,stroke:#d99e4a,color:#fff;
+    classDef svc fill:#1e4620,stroke:#3fb950,color:#fff;
+    classDef ext fill:#3d1e5c,stroke:#a371f7,color:#fff;
+    class FE fe;
+    class GW gw;
+    class MO,BE,PA,DE,OR,SA svc;
+    class DB,LLM ext;
+```
+
+| Service | Port | Role |
+|---------|:----:|------|
+| 🚪 **Gateway** | 8000 | Single entry point · path-based routing · CORS |
+| 😌 **Mood** | 8001 | Whisper STT + LLM emotion detection |
+| 👆 **Behaviour** | 8002 | Scroll/tap/idle → cognitive-load scoring |
+| 📊 **Patterns** | 8003 | Event store + deterministic pattern engine + anomalies |
+| 💡 **Devices** | 8004 | Mood → light/music/notification presets |
+| 🧠 **Orchestrator** | 8005 | *The brain* — fuses all signals → Action Engine LLM |
+| 🛡️ **Safety** | 8006 | Vulnerability-aware twin of the pattern engine |
+| 🗄️ **DynamoDB** | 8100 | Events · State · Patterns · MoodHistory · Profiles |
+
+> **Design principles:** graceful degradation (every LLM call has a deterministic fallback) · explainability (confidence + reasoning everywhere) · *no ML in detection* · *LLM only for language*.
+
+### Repository layout
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                          FRONTEND (React Dashboard)                               │
-└──────────────────────────────────┬───────────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                     API GATEWAY (port 8000)                                       │
-│               Path-based routing / Load balancer                                  │
-├──────────┬───────────┬──────────────┬────────────┬──────────────┬───────────────┤
-│ /mood/*  │/behavior/*│ /patterns/*  │ /safety/*  │  /devices/*  │/orchestrate/* │
-└────┬─────┴─────┬─────┴──────┬───────┴─────┬──────┴──────┬───────┴──────┬────────┘
-     │           │            │             │             │              │
-     ▼           ▼            ▼             ▼             ▼              ▼
-┌────────┐ ┌─────────┐ ┌──────────┐ ┌───────────┐ ┌─────────┐ ┌───────────────┐
-│  Mood  │ │Behavior │ │ Pattern  │ │  Safety   │ │ Device  │ │ Orchestrator  │
-│Service │ │ Service │ │ Service  │ │ Service   │ │ Service │ │ (The Brain)   │
-│ :8001  │ │ :8002   │ │ :8003    │ │ :8006     │ │ :8004   │ │ :8005         │
-│        │ │         │ │          │ │           │ │         │ │               │
-│Whisper │ │Scroll/  │ │Time/Seq/ │ │Elderly    │ │Mood →   │ │Collects all   │
-│+ LLM   │ │Tap/Idle │ │Duration  │ │Monitoring │ │Light/   │ │signals → LLM  │
-│Mood    │ │Cognitive│ │Patterns  │ │Vulnerable │ │Music/   │ │reasoning →    │
-│Detect  │ │Load     │ │Anomalies │ │Safety     │ │Notif    │ │device actions │
-└────────┘ └─────────┘ └──────────┘ └───────────┘ └─────────┘ └───────────────┘
+Team-NoWins/
+├── backend/
+│   ├── gateway/              # API gateway (:8000)
+│   ├── config.py             # Shared settings
+│   ├── services/
+│   │   ├── mood/             # Speech → mood (:8001)
+│   │   ├── behavior/         # Interaction → cognitive load (:8002)
+│   │   ├── devices/          # Mood → environment presets (:8004)
+│   │   └── orchestrator/     # The brain + Action Engine (:8005)
+│   ├── patterns/             # Pattern Recognition service (:8003)
+│   │   ├── pattern_engine/   #   time / sequence / duration / confidence
+│   │   ├── context_builder/  #   anomaly detection + context assembly
+│   │   ├── logic/            #   services + LLM narrator
+│   │   ├── models/ routes/ dynamodb/ scripts/ tests/
+│   └── safety/               # Adaptive Safety service (:8006)
+│       ├── context_builder/  #   anomaly.py + safety_overlay.py
+│       ├── models/safety.py  #   profiles + vulnerability + assessment
+│       └── logic/ routes/ ...
+├── frontend/                 # React + Vite dashboards (:5173)
+│   └── src/pages/            # Dashboard · Patterns · Safety · Devices · History
+├── docs/ARCHITECTURE_DIAGRAMS.md
+├── FEATURES.md               # Full feature reference
+└── docker-compose.yml
 ```
 
 ---
 
-## Features
-
-### 1. Voice-Based Mood Detection
-Records audio via Alexa/microphone → Groq Whisper STT → NVIDIA Nemotron 3 Super 120B analyzes text for emotional state. Detects 9 mood states: calm, happy, stressed, anxious, frustrated, sad, energetic, tired, neutral.
-
-### 2. Behavioral Cognitive Load Detection
-Monitors real-time interaction patterns from connected devices — scrolling speed, tap frequency, idle duration, swipe patterns → outputs cognitive load level (low/moderate/high/overloaded) and agitation score.
-
-### 3. Device Usage Pattern Recognition
-Learns household routines deterministically (no ML): time-based patterns, sequence-based departure routines, device duration norms. Detects anomalies like devices left on or exceeded runtime.
-
-### 4. Adaptive Safety Intelligence
-Monitors elderly and vulnerable family members living alone. Learns their daily routines, tracks activity, and produces a real-time safety assessment (safe/inactive/needs_attention/emergency). Alerts family contacts when something is wrong.
-
-### 5. LLM-Powered Orchestration
-The orchestrator collects all signals (mood + behavior + patterns + safety), feeds them to NVIDIA Nemotron 3 Super 120B for holistic reasoning, and decides environment adjustments. Handles contradictions intelligently.
-
-### 6. Smart Environment Control
-Maps mood + cognitive load → device adjustments: light color/brightness/temperature, music genre/volume, notification mode (normal/reduced/DND). 9 mood presets with cognitive load overrides.
-
-### 7. Alexa Voice Responses with TTS
-Every LLM response is read aloud via browser speech synthesis, simulating Alexa speaking naturally. Mutable, replayable, with expandable reasoning.
-
----
-
-## Tech Stack
+## 🧰 Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Primary LLM | NVIDIA Nemotron 3 Super 120B (AWS Bedrock) |
-| Fallback LLM | Groq LLaMA 3.3 70B Versatile |
-| Speech-to-Text | Groq Whisper Large V3 Turbo |
-| Backend | FastAPI (Python 3.13) — 6 microservices + gateway |
-| Database | Amazon DynamoDB (on-demand) |
-| Frontend | React 19 + Vite 8 + Tailwind CSS 4 |
-| Auth | Amazon Cognito (JWT) |
-| Infra | Docker Compose (local) / EC2 + ALB + API Gateway (prod) |
-| Communication | HTTP (inter-service), WebSocket (real-time) |
-| Monitoring | Amazon CloudWatch |
+| **Frontend** | React 19 · Vite 8 · React Router · TailwindCSS 4 · lucide-react |
+| **Backend** | Python 3.11+ · FastAPI · Uvicorn · Pydantic v2 |
+| **Database** | Amazon DynamoDB (DynamoDB Local / `moto` for dev) |
+| **LLM — primary** | AWS Bedrock — Nvidia Nemotron Super 3 120B |
+| **LLM — fallback** | Groq — LLaMA 3.3 70B Versatile |
+| **Speech-to-Text** | Groq Whisper Large V3 Turbo |
+| **Infra** | Docker Compose (9 containers) · `httpx` inter-service calls |
 
 ---
 
-## Project Structure
-
-```
-├── backend/
-│   ├── gateway/main.py                 # API Gateway — routes to all services
-│   ├── config.py                       # Shared settings (LLM provider toggle)
-│   ├── services/
-│   │   ├── mood/                       # Port 8001 — Mood analysis
-│   │   │   ├── main.py
-│   │   │   ├── bedrock_client.py       # Dual-provider: Bedrock + Groq
-│   │   │   └── models.py
-│   │   ├── behavior/                   # Port 8002 — Behavior analysis
-│   │   │   ├── main.py
-│   │   │   ├── engine.py              # Signal processing algorithm
-│   │   │   └── models.py
-│   │   ├── patterns/                   # Port 8003 — Pattern recognition
-│   │   │   ├── main.py
-│   │   │   ├── engine/                # Deterministic extractors
-│   │   │   ├── context_builder.py
-│   │   │   ├── dynamo.py
-│   │   │   └── models.py
-│   │   ├── devices/                    # Port 8004 — Device control
-│   │   │   ├── main.py
-│   │   │   └── controller.py
-│   │   └── orchestrator/              # Port 8005 — The Brain
-│   │       ├── main.py
-│   │       ├── action_engine.py       # Dual-provider LLM reasoning
-│   │       └── mood_history.py        # DynamoDB mood timeline
-│   ├── patterns/                       # Standalone pattern engine (ECS)
-│   │   ├── app/main.py
-│   │   ├── logic/narrator.py          # LLM-powered Alexa narration
-│   │   └── ...
-│   ├── safety/                         # Port 8006 — Adaptive Safety
-│   │   ├── app/main.py
-│   │   ├── models/safety.py           # Vulnerability, SafetyAssessment
-│   │   ├── routes/safety.py           # Safety dashboard API
-│   │   └── ...
-│   └── docker-compose.yml
-├── frontend/
-│   └── src/
-│       ├── pages/
-│       │   ├── Dashboard.jsx          # Real-time mood monitoring + TTS
-│       │   ├── Patterns.jsx           # Interactive floor plan + anomalies
-│       │   ├── MoodHistory.jsx        # DynamoDB-backed timeline
-│       │   └── DeviceControl.jsx
-│       ├── components/
-│       │   ├── VoiceInput.jsx         # Mic recording → base64 → backend
-│       │   ├── BehaviorTracker.jsx    # DOM event monitoring
-│       │   └── patterns/
-│       │       ├── AlexaNotification.jsx  # TTS popup with stacked notifications
-│       │       └── HouseFloor.jsx         # Interactive device floor plan
-│       └── patternsApi.js
-└── docker-compose.yml                  # Full stack (9 containers)
-```
-
----
-
-## Services
-
-| Service | Port | Purpose |
-|---------|------|---------|
-| API Gateway | 8000 | Routes requests to microservices |
-| Mood Analysis | 8001 | Speech/text → mood classification via LLM |
-| Behavior Analysis | 8002 | Interaction signals → cognitive load (algorithmic) |
-| Pattern Recognition | 8003 | Device events → learned routines + anomaly detection |
-| Device Control | 8004 | Mood → environment presets (lights, music, notifications) |
-| Orchestrator | 8005 | Collects all signals → LLM reasoning → action decisions |
-| Safety Intelligence | 8006 | Elderly monitoring → vulnerability-aware safety assessment |
-| DynamoDB Local | 8100 | Local database for development |
-| Frontend | 5173 | React dashboard |
-
----
-
-## Data Flow
-
-```
-User speaks / interacts with devices
-         │                        │                    │
-         ▼                        ▼                    ▼
-   Mood Service              Behavior Service    Pattern Service
-   (Whisper + Nemotron)      (Algorithm)         (Deterministic)
-   mood: "stressed"          load: "overloaded"  anomaly: "fan left on"
-   confidence: 85%           agitation: 93%      
-         │                        │                    │
-         └──────────────┬─────────┘                    │
-                        │         ┌────────────────────┘
-                        ▼         ▼
-              ┌──────────────────────────┐
-              │      ORCHESTRATOR        │      Safety Service
-              │   (Nemotron 3 Super)     │ ←── (vulnerability context)
-              │                          │
-              │  Holistic reasoning:     │
-              │  mood + behavior +       │
-              │  patterns + safety       │
-              │                          │
-              │  Decides:                │
-              │  • Dim blue lights       │
-              │  • Ambient music         │
-              │  • Turn off fan          │
-              │  • DND mode              │
-              │  • Alert family if       │
-              │    elderly inactive      │
-              └────────────┬─────────────┘
-                           │
-                           ▼
-              Smart Home Devices + Notifications
-```
-
----
-
-## API Endpoints
-
-All endpoints accessed via the gateway at `http://localhost:8000`:
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/mood/analyze/audio` | Analyze audio for mood |
-| POST | `/mood/analyze/text` | Analyze text for mood |
-| POST | `/behavior/analyze` | Process behavior signals |
-| POST | `/patterns/events` | Ingest device event |
-| GET | `/patterns/context/{id}` | Get AI-ready context object |
-| POST | `/patterns/patterns/{id}/extract` | Run pattern extraction |
-| GET | `/safety/{household_id}` | Full safety dashboard payload |
-| POST | `/safety/{household_id}/profiles` | Configure vulnerable person profiles |
-| POST | `/devices/adjust` | Compute environment settings |
-| POST | `/orchestrate/process` | Full pipeline (all signals → LLM → actions) |
-| GET | `/orchestrate/history/{user_id}` | Mood history timeline |
-| GET | `/services/health` | Health check all services |
-
----
-
-## Getting Started
+## 🚀 Setup
 
 ### Prerequisites
-- Docker & Docker Compose
-- Node.js 18+ (for frontend dev)
-- AWS credentials (for Bedrock access)
-- Groq API key (free tier — backup LLM + Whisper STT)
+- **Docker** & Docker Compose *(easiest path)*, **or** Python 3.11+ and Node 18+ for local dev
+- A **Groq API key** (free tier) and/or AWS credentials for Bedrock
 
-### Run All Services (Docker)
+### Configure environment
+
+Create `backend/.env`:
+
+```bash
+# LLM provider: "groq" or "bedrock"
+LLM_PROVIDER=groq
+GROQ_API_KEY=your_groq_key_here
+GROQ_LLM_MODEL=llama-3.3-70b-versatile
+
+# AWS Bedrock (optional, if LLM_PROVIDER=bedrock)
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=nvidia.nemotron-super-3-120b
+
+# DynamoDB (local)
+DYNAMODB_ENDPOINT_URL=http://localhost:8100
+```
+
+And `frontend/.env`:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000        # gateway (mood, devices, history)
+VITE_WS_URL=ws://localhost:8000/alexa/stream   # live orchestrator stream
+VITE_PATTERNS_API_BASE=http://localhost:8003   # pattern recognition service
+VITE_SAFETY_API_BASE=http://localhost:8006     # adaptive safety service
+```
+
+### Option A — Docker (everything at once)
 
 ```bash
 docker-compose up --build
 ```
 
-Open `http://localhost:5173` for the dashboard.
+Open **http://localhost:5173** 🎉
 
-### Run Individually (Development)
+### Option B — Local development
 
 ```bash
-# Backend services
+# 1. Backend deps
 cd backend
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
 
-# Terminal 1: Gateway
-uvicorn gateway.main:app --reload --port 8000
-
-# Terminal 2: Mood Service
-uvicorn services.mood.main:app --reload --port 8001
-
-# Terminal 3: Behavior Service
-uvicorn services.behavior.main:app --reload --port 8002
-
-# Terminal 4: Pattern Service (needs DynamoDB Local)
+# 2. Start DynamoDB Local (or moto: `moto_server -p 8100`)
 docker run -p 8100:8000 amazon/dynamodb-local
-uvicorn patterns.app.main:app --reload --port 8003
 
-# Terminal 5: Device Service
-uvicorn services.devices.main:app --reload --port 8004
-
-# Terminal 6: Orchestrator
+# 3. Launch services (separate terminals, or background)
+uvicorn gateway.main:app               --reload --port 8000
+uvicorn services.mood.main:app         --reload --port 8001
+uvicorn services.behavior.main:app     --reload --port 8002
+uvicorn patterns.app.main:app          --reload --port 8003
+uvicorn services.devices.main:app      --reload --port 8004
 uvicorn services.orchestrator.main:app --reload --port 8005
+uvicorn safety.app.main:app            --reload --port 8006
 
-# Terminal 7: Safety Service
-uvicorn safety.app.main:app --reload --port 8006
-
-# Terminal 8: Frontend
-cd ../frontend && npm run dev
+# 4. Frontend
+cd ../frontend && npm install && npm run dev
 ```
 
-### Environment Variables
+### Seed demo data
 
-Create `backend/.env`:
-```env
-LLM_PROVIDER=bedrock
-BEDROCK_MODEL_ID=nvidia.nemotron-super-3-120b
-GROQ_API_KEY=<your-groq-key>
-GROQ_LLM_MODEL=llama-3.3-70b-versatile
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=<your-key>
-AWS_SECRET_ACCESS_KEY=<your-secret>
-DYNAMODB_ENDPOINT_URL=http://localhost:8100
+```bash
+# Patterns demo (household H001)
+cd backend && python patterns/scripts/seed_data.py
+
+# Safety demo (household E001) — via the dashboard "Simulate" buttons,
+# or: curl -X POST "http://localhost:8006/admin/seed/E001?scenario=window_night"
+```
+
+### Run the tests
+
+```bash
+cd backend && pytest patterns/ safety/   # uses in-memory moto DynamoDB, no AWS needed
 ```
 
 ---
 
-## Deployment
+## 📚 Further Reading
 
-Production target: AWS
-
-| Component | Service |
-|-----------|---------|
-| Auth | Amazon Cognito |
-| API Entry | Amazon API Gateway |
-| Load Balancing | Application Load Balancer |
-| Compute | EC2 Auto Scaling Groups (5 instances) |
-| Database | Amazon DynamoDB (on-demand) |
-| AI Inference | AWS Bedrock (Nemotron 3 Super 120B) |
-| Frontend | S3 + CloudFront |
-| Secrets | AWS Secrets Manager |
-| Monitoring | Amazon CloudWatch |
-
-Each microservice runs on its own EC2 instance behind the ALB with path-based routing. The orchestrator calls other services via internal ALB DNS.
+| Document | What's inside |
+|----------|---------------|
+| [`FEATURES.md`](FEATURES.md) | Complete feature-by-feature reference |
+| [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) | Detailed block diagrams + parameter tables |
+| [`backend/patterns/README.md`](backend/patterns/README.md) | Pattern engine internals & API |
+| [`backend/safety/README.md`](backend/safety/README.md) | Safety overlay internals & API |
 
 ---
 
-## Team
+<div align="center">
 
-Built by **Team NoWins** for HackOn 2026
+### 🔑 The one idea to remember
+
+> **Deterministic engines decide _what is true_. The LLM only decides _how to say it_.**
+> That's what makes Awaas AI explainable, reliable, and genuinely caring.
+
+<br/>
+
+*Built with ❤️ for HackOn 2026 · Team NoWins*
+
+</div>

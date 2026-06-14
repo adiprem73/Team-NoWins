@@ -1,206 +1,156 @@
-# Context-Aware Smart Home Intelligence Platform
+# 🛡️ Adaptive Safety Intelligence Service
 
-A containerised service that turns raw household device events into an
-**AI-ready context object**. The system learns behaviour patterns
-**deterministically** (no LLM) and produces the structured context that the
-MoodSense orchestrator hands to **Amazon Bedrock** for reasoning.
+> Part of **Awaas AI** · runs on **port 8006**
 
-```
-Device Events → ALB → ECS (FastAPI) → DynamoDB Events
-       → Pattern Extraction (in-process scheduler) → DynamoDB Patterns
-       → Household State (DynamoDB) → Context Builder → Context Object
-       → [ Orchestrator → Amazon Bedrock ]
-```
-
----
-
-## 1. Architecture
-
-| Concern | Service | Why |
-|---|---|---|
-| Ingest / read API | **ALB + ECS (FastAPI/uvicorn)** | One containerised ASGI app behind the shared load balancer. |
-| Event store | **DynamoDB** `SmartHome_Events` | Append-only, time-ordered per household. |
-| Live snapshot | **DynamoDB** `SmartHome_HouseholdState` | One mutable doc per home. |
-| Learned patterns | **DynamoDB** `SmartHome_Patterns` | Deterministic engine output. |
-| Scheduled learning | **In-process scheduler** | Re-runs the extraction job on a fixed interval inside the service. |
-| Reasoning | **Amazon Bedrock** (via orchestrator) | Consumes the context object. |
-
-### Core philosophy
-Pattern discovery is **deterministic and explainable**:
-`Events → Pattern Extraction → Household Knowledge → Context Builder → Bedrock`.
-We never ask an LLM to *discover* patterns.
-
----
-
-## 2. DynamoDB table designs
-
-**`SmartHome_Events`** — PK `household_id` (HASH), `sk` (RANGE = `"{ISO-timestamp}#{event_id}"`).
-The composite sort key keeps events naturally time-ordered *and* unique, so
-"last 30 days for H001" is a single efficient `Query`.
-
-**`SmartHome_HouseholdState`** — PK `household_id`. One item per home holding
-`people_home`, `active_devices`, `device_on_since`.
-
-**`SmartHome_Patterns`** — PK `household_id` (HASH), `pattern_id` (RANGE).
-Stores time / sequence / duration patterns with confidence + support.
-
-All tables use **on-demand (PAY_PER_REQUEST)** billing — ideal for spiky IoT
-traffic with zero capacity planning.
-
----
-
-## 3. Folder structure
+An **independent twin** of the [Pattern Recognition service](../patterns/README.md).
+It reuses the same deterministic pattern engine, then adds **one powerful new
+idea**: *who is home, and how vulnerable are they?* Every anomaly is re-read
+through a vulnerability lens, producing a live **safety score** and emergency
+detection for vulnerable people living alone — elderly, children, pregnant, or
+unwell family members.
 
 ```
-backend/
-├── app/                 # FastAPI app + config + DI
-│   ├── config.py        # env-driven settings
-│   └── main.py          # app factory + in-process extraction scheduler
-├── models/              # Pydantic models (events, state, patterns, context)
-├── routes/              # FastAPI routers (events, state, patterns, context)
-├── services/            # Business logic over DynamoDB + engine + builder
-├── pattern_engine/      # Deterministic extractors (time/sequence/duration)
-├── context_builder/     # Context assembly + anomaly detection
-├── dynamodb/            # boto3 resource + table schemas
-├── scripts/             # create_tables.py, seed_data.py
-├── tests/               # pytest suite + sample_data.py
-├── Dockerfile           # container image (ECS task)
-├── docker-compose.yml   # DynamoDB Local
-└── requirements.txt
+Events → Pattern Engine → Anomalies (+ safety detectors)
+   → Safety Overlay (vulnerability escalation) → Safety Assessment
+   → [ LLM Narrator → caring Alexa voice ]
 ```
 
 ---
 
-## 4. API specification
+## 1 · What makes it different from Patterns
+
+The whole event → pattern → anomaly pipeline is identical. Safety adds:
+
+| Addition | File | Role |
+|----------|------|------|
+| **Person profiles** | [`models/safety.py`](models/safety.py) | who lives here + their vulnerability level |
+| **Safety overlay** | [`context_builder/safety_overlay.py`](context_builder/safety_overlay.py) | escalate severity by vulnerability → score + status |
+| **Profile service** | [`logic/profile_service.py`](logic/profile_service.py) | CRUD for person profiles |
+| **Safety detectors** | [`context_builder/anomaly.py`](context_builder/anomaly.py) | 4 extra people-centric detectors |
+
+> The **same** open door is `low` severity with a fit adult home — but `critical`
+> for an elderly person alone. Still **deterministic and explainable**: the LLM
+> only phrases the result, it never decides what is true.
+
+---
+
+## 2 · Vulnerability weights ([`app/config.py`](app/config.py))
+
+| Person | Weight | | Person | Weight |
+|--------|:------:|---|--------|:------:|
+| Normal adult | ×1.0 | | Pregnant | ×1.8 |
+| Child | ×1.7 | | Elderly | ×2.0 |
+| Unwell | ×1.8 | | Capable adult present | ×0.6 *(mitigates)* |
+
+- **Most-vulnerable wins** — the home's factor is the max over who's home.
+- **Supervised mitigation** — a capable NORMAL adult present multiplies the factor by `0.6`.
+- **Vulnerable-alone** — a non-normal person home with no capable adult → every concern fully escalated.
+
+Escalated rank = `round(base_rank × factor)`, clamped to `[0, 4]` → mapped to
+`low / medium / high / critical`.
+
+---
+
+## 3 · Detectors
+
+The 5 pattern detectors (`device_left_on`, `duration_exceeded`,
+`device_active_too_long`, `missed_routine`, `unexpected_activity`) **plus** four
+safety-specific ones:
+
+| Detector | Fires when |
+|----------|-----------|
+| `inactivity` / `missed_arrival` / `missed_medicine` | an elderly activity ping, expected arrival, or medicine confirmation is absent |
+| `unsafe_at_night` | a door/window is open during the night window (22:00–06:00) |
+| `global_inactivity` | no activity of *any* kind for 4 h (warn) / 8 h (emergency) while someone's home |
+| `health_alert` / `sos` | a wearable vital is out of range, or a panic/fall SOS fires → instant **Emergency** |
+
+---
+
+## 4 · Safety score & status ([`context_builder/safety_overlay.py`](context_builder/safety_overlay.py))
+
+Starts at **100**, deducts per escalated anomaly:
+
+| Severity | Penalty | | Status | Condition |
+|----------|:-------:|---|--------|-----------|
+| low | −4 | | 🟢 **Safe** | ≥ 60, no high/critical |
+| medium | −12 | | 🟡 **Inactive** | only inactivity-type anomalies |
+| high | −28 | | 🟠 **Needs Attention** | < 60 or any high/critical |
+| critical | −55 | | 🔴 **Emergency** | SOS / health / global-inactivity / score < 25 |
+
+---
+
+## 5 · DynamoDB tables
+
+The safety engine uses its **own** tables so its data never touches the patterns
+feature (names overridable via env — see [`app/config.py`](app/config.py)):
+
+| Table | Keys | Holds |
+|-------|------|-------|
+| `Safety_Events` | PK `household_id`, SK `{ISO-timestamp}#{event_id}` | event log |
+| `Safety_HouseholdState` | PK `household_id` | live snapshot |
+| `Safety_Patterns` | PK `household_id`, SK `pattern_id` | learned patterns |
+| `Safety_Profiles` | PK `household_id`, SK `person_id` | person profiles + vulnerability |
+
+---
+
+## 6 · API specification
 
 | Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/events` | Ingest one event; updates live state. |
-| `GET`  | `/events?household_id=&since=&limit=` | Query events (chronological). |
-| `GET`  | `/state/{household_id}` | Current household snapshot. |
-| `POST` | `/patterns/{household_id}/extract` | Run extraction now. |
-| `GET`  | `/patterns/{household_id}` | List learned patterns. |
-| `GET`  | `/context/{household_id}` | **Build the AI-ready context object.** |
+|--------|------|---------|
+| `GET`  | `/safety/{household_id}?at=HH:MM` | **Full dashboard payload** — context + safety assessment + profiles + state + timeline + patterns. |
+| `GET`  | `/context/{household_id}` | Build the context object (with safety overlay). |
+| `POST` | `/context/{household_id}/evaluate` | "What-if" — evaluate a supplied state against learned patterns. |
+| `POST` | `/context/narrate` | Narrate a context into one spoken Alexa line. |
+| `POST` | `/context/narrate/each` | Narrate **each** concern individually, most-severe first. |
+| `POST` | `/admin/seed/{household_id}?scenario=` | Seed 30 days of history + a today scenario. |
+| `POST` | `/admin/profiles/{household_id}?preset=` | Swap who's home (vulnerability preset). |
+| `GET`  | `/admin/scenarios` | List demo scenarios + presets. |
 | `GET`  | `/health` | Liveness. |
 
-Interactive docs at `/docs` (Swagger) when running locally.
+### Demo scenarios (`/admin/seed`)
+`normal` · `inactivity` · `gas` · `window_night` · `health` · `sos`
+*(combine with commas, e.g. `gas,window_night`)*
 
-### Example: ingest
-```bash
-curl -X POST localhost:8080/events -H 'Content-Type: application/json' -d '{
-  "household_id": "H001",
-  "device_id": "son_room_fan",
-  "device_type": "fan",
-  "room": "son_room",
-  "action": "OFF",
-  "triggered_by": "son"
-}'
-```
-
-### Example: context object (departure anomaly)
-```json
-{
-  "context_type": "departure_anomaly",
-  "current_time": "11:00",
-  "people_home": { "father": true, "mother": false, "son": false },
-  "active_devices": ["son_room_fan", "son_room_light"],
-  "relevant_patterns": [
-    { "pattern_id": "SEQ#001", "description": "Departure routine: home secured / devices switched off", "confidence": 0.95 }
-  ],
-  "anomalies": [
-    { "type": "device_left_on", "device": "son_room_fan", "severity": "high" }
-  ]
-}
-```
+### Who's-home presets (`/admin/profiles`)
+`elderly` · `child_alone` · `pregnant_alone` · `unwell_alone` · `mixed_support`
 
 ---
 
-## 5. Pattern extraction algorithms (deterministic)
+## 7 · Local development
 
-* **Time-based** — group `(device, action)`, cluster time-of-day into 30-min
-  buckets, take the dominant bucket, score by support × consistency.
-* **Sequence-based** — slice the timeline into sessions (events within 10 min),
-  count repeated `device:action` signatures across days (captures the
-  "son leaves for college" routine).
-* **Duration-based** — pair each ON with the next OFF to learn typical runtime
-  (e.g. water motor ≈ 15 min) and its variance.
-
-**Confidence** = `support_score × consistency_score`, both in `[0,1]`
-(`pattern_engine/confidence.py`). No randomness, fully reproducible.
-
-### Anomaly detection (`context_builder/anomaly.py`)
-* `device_left_on` — active device past its learned OFF time + grace window.
-* `duration_exceeded` — running > `usual × 2` (water-motor example).
-
----
-
-## 6. Local development setup
+Run from the `backend/` directory:
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
 
-# 1) Start DynamoDB Local
-docker compose up -d
+# 1) Start DynamoDB Local (or: moto_server -p 8100)
+docker run -p 8100:8000 amazon/dynamodb-local
+#    then set DYNAMODB_ENDPOINT_URL=http://localhost:8100 in backend/.env
 
-# 2) Configure environment
-cp .env.example .env          # DYNAMODB_ENDPOINT_URL=http://localhost:8000
+# 2) Run the API (tables auto-create on startup)
+uvicorn safety.app.main:app --reload --port 8006
+# open http://localhost:8006/docs
 
-# 3) Create tables + seed 30 days of data and extract patterns
-python scripts/create_tables.py
-python scripts/seed_data.py
-
-# 4) Run the API
-uvicorn app.main:app --reload --port 8080
-# open http://localhost:8080/docs
-
-# 5) See the context object (departure anomaly demo)
-curl localhost:8080/context/H001
+# 3) Seed the elderly household + a scenario, then view the dashboard
+curl -X POST "http://localhost:8006/admin/seed/E001?scenario=window_night"
+curl "http://localhost:8006/safety/E001"
 ```
 
-### Run tests (no AWS needed — uses moto in-memory DynamoDB)
+### Run the tests (no AWS needed — uses in-memory moto DynamoDB)
 ```bash
-pytest
+cd backend && pytest safety/
 ```
 
 ---
 
-## 7. AWS deployment (ECS + ALB)
+## 8 · TLS note (corporate proxies)
 
-The service ships as a container ([`Dockerfile`](Dockerfile)) and runs as an
-ECS task behind the shared Application Load Balancer — the same deployment
-model as every other backend service in the platform.
+Outbound LLM calls (Groq / Bedrock) use a scoped OS-trust-store SSL context via
+`truststore`, so the narrator still reaches the LLM behind a TLS-intercepting
+proxy. If the LLM is unreachable, narration falls back to a deterministic
+template — the dashboard never blocks. See [`logic/narrator.py`](logic/narrator.py).
 
-```bash
-cd backend
-docker build -t smarthome-patterns .
-# push to ECR, then run as an ECS service behind the ALB at path /patterns/*
-```
-
-Provision once (via the platform IaC):
-* 3 DynamoDB tables (on-demand),
-* an **ECS service** running this image, fronted by the **ALB** (target group
-  routed on `/patterns/*`),
-* the deterministic extraction job runs **in-process** on a fixed interval —
-  enable it by setting `SCHEDULED_HOUSEHOLD_IDS` (and optionally
-  `EXTRACTION_INTERVAL_HOURS`) on the task.
-
-After deploy, the ALB host is your REST endpoint:
-```bash
-curl "$ALB_URL/patterns/context/H001"
-```
-
-Seed data by POSTing events to `$ALB_URL/patterns/events`, then trigger
-extraction on demand:
-```bash
-curl -X POST "$ALB_URL/patterns/H001/extract"
-```
-
----
-
-## 8. What's intentionally NOT built
-
-* **Amazon Bedrock reasoning / proactive suggestions** — this service stops once
-  the `ContextObject` is generated and validated. That object is the documented
-  hand-off boundary consumed by the MoodSense orchestrator.
+> 📊 For the underlying deterministic engine, see the
+> [Pattern Recognition service](../patterns/README.md).
