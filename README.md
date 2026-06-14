@@ -40,14 +40,14 @@
 
 ### The Problem
 
-A "smart home" today is just a collection of **dumb switches with an app**. It does exactly what you tell it — nothing more. It has no idea:
+A "smart home" today is just a collection of **dumb switches with an app**. It does exactly what you tell it, nothing more. It has no idea:
 
 - 😟 …that you came home **stressed** and the bright white lights are making it worse.
 - 🔥 …that the **gas stove** has been on for 45 minutes when it usually runs for 15.
-- 👵 …that **Grandma**, living alone, hasn't moved since her 6:30 AM wake-up routine — and it's now noon.
-- 💡 …that someone rushed out and left the **son's room fan** running all day.
+- 👵 …that **Grandma** or **elderly parent**, living alone, unaware of her health conditons and medicines.
+- 💡 …that **son** who rushed out and left the **room's fan** running all day.
 
-In a country of **joint families** — elderly parents living independently, children home from school alone, working couples, domestic help on schedules — a home that *cannot notice* is a home that *cannot care*.
+In a country of **joint families**, elderly parents living independently, children coming from school to home alone, working couples, domestic help on schedules, a home that *cannot notice* is a home that *cannot care*.
 
 ### The Solution
 
@@ -59,7 +59,7 @@ In a country of **joint families** — elderly parents living independently, chi
 | **How you live** 📊 | learning device routines deterministically over 30 days | notice when something is *off* — left on, missed, or running too long |
 | **Who you love** 🛡️ | layering a vulnerability lens over every anomaly | escalate a small risk into an urgent alert when a vulnerable person is alone |
 
-> **The core philosophy:** the system *discovers what is true* **deterministically** (statistics, no ML black box), and only uses an **LLM to phrase it** in natural, caring language. The AI never decides reality — it only narrates it.
+> **The core philosophy:** the system *discovers what is true* **deterministically** (statisticstically), and only uses an **LLM to phrase it** in natural, caring language. The AI never decides reality, it only narrates it.
 
 ---
 
@@ -78,7 +78,7 @@ Detects emotion from **speech** (Whisper → LLM) and **behaviour** (scroll/tap/
 <td width="33%" valign="top">
 
 ### 📊 Pattern Recognition
-Learns daily routines from IoT events using pure **statistics** (time / sequence / duration). Flags **anomalies** with explainable confidence.
+Learns daily routines from IoT events using pure **statistics** (time / sequence / duration). Flags **anomalies** with explainable confidence. Uses our innovative pattern-recognition engine which generates patterns from daily events logs and compares these patterns to current state of things in real time. This generates reliable contexts and hence anomalies can be flagged.
 
 `no ML` · `fully auditable`
 
@@ -211,7 +211,7 @@ flowchart TB
 
 ### Confidence — explainable by design
 
-$$\text{confidence} = \underbrace{\min\left(1, \frac{\text{occurrences}}{\text{window\_days}}\right)}_{\text{support}} \times \underbrace{\left(1 - \frac{\text{stddev}}{2 \times \text{tolerance}}\right)}_{\text{consistency}}$$
+$$\text{confidence} = \underbrace{\min\left(1, \frac{\text{occurrences}}{\text{window\days}}\right)}_{\text{support}} \times \underbrace{\left(1 - \frac{\text{stddev}}{2 \times \text{tolerance}}\right)}_{\text{consistency}}$$
 
 A pattern is kept only if it occurs **≥ 3 times** *and* scores **≥ 0.6**. No randomness, fully reproducible.
 
