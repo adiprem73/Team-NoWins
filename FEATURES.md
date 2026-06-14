@@ -36,8 +36,8 @@ Detects the emotional state of household members through voice analysis and beha
 |---------|------|------|
 | Mood Analysis | 8001 | Speech-to-text + emotion detection |
 | Behavior Tracking | 8002 | Interaction pattern analysis |
-| Device Control | 8004 | Environment preset computation |
 | Orchestrator (Brain) | 8005 | Unifies all signals, calls the Action Engine LLM |
+| Adaptive Safety Intelligence | 8005 | Leanrs by pattern identification from HouseHold activity logs and then detect vulenrabilities regarding safety of vulnerable family members |
 
 ### Pipeline (end-to-end)
 
