@@ -18,6 +18,7 @@ services:
       - PATTERNS_SERVICE_URL=http://patterns-service:8003
       - DEVICES_SERVICE_URL=http://devices-service:8004
       - ORCHESTRATOR_SERVICE_URL=http://orchestrator-service:8005
+      - SAFETY_SERVICE_URL=http://safety-service:8006
     command: uvicorn gateway.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
@@ -27,6 +28,7 @@ services:
       - patterns-service
       - devices-service
       - orchestrator-service
+      - safety-service
 
   # Mood Analysis Service
   mood-service:
@@ -58,6 +60,21 @@ services:
       - DYNAMODB_ENDPOINT_URL=http://dynamodb-local:8000
       - AWS_REGION=us-east-1
     command: uvicorn patterns.app.main:app --host 0.0.0.0 --port 8003 --reload
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - dynamodb-local
+
+  # Adaptive Safety Intelligence Service
+  safety-service:
+    build: ./backend
+    ports:
+      - "8006:8006"
+    env_file: ./backend/.env
+    environment:
+      - DYNAMODB_ENDPOINT_URL=http://dynamodb-local:8000
+      - AWS_REGION=us-east-1
+    command: uvicorn safety.app.main:app --host 0.0.0.0 --port 8006 --reload
     volumes:
       - ./backend:/app
     depends_on:

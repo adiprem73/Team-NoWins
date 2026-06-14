@@ -16,6 +16,9 @@ class ContextType(str, Enum):
     DEPARTURE_ANOMALY = "departure_anomaly"
     DURATION_ANOMALY = "duration_anomaly"
     ROUTINE_SUGGESTION = "routine_suggestion"
+    # --- Indian-context, people-centric situations ---
+    CARE_ALERT = "care_alert"          # elderly inactivity / missed medicine / missed return
+    SECURITY_ALERT = "security_alert"  # someone active outside the usual schedule
     NORMAL = "normal"
 
 
@@ -24,6 +27,11 @@ class AnomalyType(str, Enum):
     DURATION_EXCEEDED = "duration_exceeded"
     MISSED_ROUTINE = "missed_routine"
     DEVICE_ACTIVE_TOO_LONG = "device_active_too_long"
+    # --- People-centric (care / safety / security) ---
+    INACTIVITY = "inactivity"                # elderly person's usual activity not seen
+    MISSED_ARRIVAL = "missed_arrival"        # person hasn't returned as usual (e.g. child)
+    MISSED_MEDICINE = "missed_medicine"      # medicine routine not confirmed
+    UNEXPECTED_ACTIVITY = "unexpected_activity"  # entry/activity outside the learned schedule
 
 
 class Anomaly(BaseModel):

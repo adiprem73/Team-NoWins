@@ -13,127 +13,44 @@ function pickVoice() {
   return preferred || pool[0];
 }
 
-// Alexa-style voice notification popup. Appears bottom-right when the engine
-// produces a spoken-language response for the current context, READS IT ALOUD
-// via the browser Web Speech API, auto-dismisses after a delay (pause on hover
-// / when expanded); click ✕ to close immediately.
-//
-// Props:
-//   notification: { id, text, explanation, llmPowered, tone } | null
-//   onClose: () => void
-export default function AlexaNotification({ notification, onClose }) {
-  const [visible, setVisible] = useState(false);
-  const [hover, setHover] = useState(false);
+// ───────────────────────────────────────────────────────────────────────────
+// A single Alexa notification card (presentational). All the voice / TTS
+// orchestration lives in the parent stack — this card only reflects whether it
+// is the one currently being spoken (`isSpeaking`) and renders the controls.
+// ───────────────────────────────────────────────────────────────────────────
+function NotificationCard({
+  notification,
+  isSpeaking,
+  muted,
+  ttsSupported,
+  onToggleMute,
+  onReplay,
+  onDismiss,
+}) {
+  const [shown, setShown] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  // Voice on/off, remembered across sessions.
-  const [muted, setMuted] = useState(() => {
-    try {
-      return localStorage.getItem("alexa_tts_muted") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const lastSpokenId = useRef(null);
 
-  const ttsSupported =
-    typeof window !== "undefined" && "speechSynthesis" in window;
-
-  // Persist mute preference.
+  // Slide in on mount.
   useEffect(() => {
-    try {
-      localStorage.setItem("alexa_tts_muted", muted ? "1" : "0");
-    } catch {
-      /* ignore storage failures */
-    }
-  }, [muted]);
-
-  // Speak the message aloud whenever a NEW notification arrives (once per id).
-  useEffect(() => {
-    if (!notification || !ttsSupported) return;
-    if (muted) return;
-    if (lastSpokenId.current === notification.id) return;
-    lastSpokenId.current = notification.id;
-
-    const synth = window.speechSynthesis;
-    synth.cancel(); // stop anything still speaking
-    const utter = new SpeechSynthesisUtterance(notification.text);
-    utter.rate = 1.02;
-    utter.pitch = 1.0;
-    const voice = pickVoice();
-    if (voice) utter.voice = voice;
-    utter.onstart = () => setSpeaking(true);
-    utter.onend = () => setSpeaking(false);
-    utter.onerror = () => setSpeaking(false);
-    // Some browsers need a tick after cancel() before speak() takes effect.
-    const t = setTimeout(() => synth.speak(utter), 60);
+    const t = setTimeout(() => setShown(true), 20);
     return () => clearTimeout(t);
-  }, [notification, muted, ttsSupported]);
+  }, []);
 
-  // Stop any speech when the popup is dismissed/unmounted.
-  useEffect(() => {
-    if (!ttsSupported) return;
-    if (!visible) window.speechSynthesis.cancel();
-    return () => window.speechSynthesis.cancel();
-  }, [visible, ttsSupported]);
-
-  const replay = () => {
-    if (!ttsSupported || !notification) return;
-    const synth = window.speechSynthesis;
-    synth.cancel();
-    const utter = new SpeechSynthesisUtterance(notification.text);
-    utter.rate = 1.02;
-    const voice = pickVoice();
-    if (voice) utter.voice = voice;
-    utter.onstart = () => setSpeaking(true);
-    utter.onend = () => setSpeaking(false);
-    utter.onerror = () => setSpeaking(false);
-    synth.speak(utter);
+  const dismiss = () => {
+    setLeaving(true);
+    setTimeout(() => onDismiss?.(notification.id), 280);
   };
-
-  const toggleMute = () => {
-    setMuted((m) => {
-      const next = !m;
-      if (next && ttsSupported) window.speechSynthesis.cancel();
-      return next;
-    });
-  };
-
-  // Slide in when a new notification arrives (and collapse any prior detail).
-  useEffect(() => {
-    if (!notification) return;
-    setVisible(true);
-    setExpanded(false);
-  }, [notification]);
-
-  // Auto-dismiss timer (paused while hovered OR while the detail is expanded OR
-  // while actively speaking, so it never vanishes mid-sentence).
-  useEffect(() => {
-    if (!notification || hover || expanded || speaking) return;
-    const ms = notification.tone === "alert" ? 9000 : 6000;
-    const t = setTimeout(() => setVisible(false), ms);
-    return () => clearTimeout(t);
-  }, [notification, hover, expanded, speaking]);
-
-  // After the slide-out transition, tell the parent to clear it.
-  useEffect(() => {
-    if (visible || !notification) return;
-    const t = setTimeout(() => onClose?.(), 320);
-    return () => clearTimeout(t);
-  }, [visible, notification, onClose]);
-
-  if (!notification) return null;
 
   const alert = notification.tone === "alert";
 
   return (
     <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
       className={[
-        "fixed bottom-5 right-5 z-50 w-[360px] max-w-[calc(100vw-2.5rem)]",
-        "transition-all duration-300 ease-out",
-        visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
+        "w-[360px] max-w-[calc(100vw-2.5rem)] transition-all duration-300 ease-out",
+        shown && !leaving
+          ? "translate-x-0 opacity-100"
+          : "translate-x-6 opacity-0",
       ].join(" ")}
       role="status"
       aria-live="polite"
@@ -141,7 +58,14 @@ export default function AlexaNotification({ notification, onClose }) {
       <div
         className={[
           "relative overflow-hidden rounded-2xl border bg-slate-900/95 p-4 shadow-2xl backdrop-blur",
-          alert ? "border-red-500/50" : "border-sky-500/40",
+          isSpeaking
+            ? "ring-2 ring-offset-1 ring-offset-slate-950 " +
+              (alert
+                ? "border-red-400/70 ring-red-400/70"
+                : "border-sky-400/70 ring-sky-400/70")
+            : alert
+              ? "border-red-500/50"
+              : "border-sky-500/40",
         ].join(" ")}
       >
         {/* Glow accent bar */}
@@ -168,8 +92,10 @@ export default function AlexaNotification({ notification, onClose }) {
                   : "radial-gradient(circle at 50% 50%, #67e8f9 0%, #0ea5e9 45%, #0f172a 75%)",
               }}
             />
-            {/* speaking dots */}
-            <span className="alexa-ping absolute inset-0 rounded-full" />
+            {/* speaking pulse — only on the card being read aloud */}
+            {isSpeaking && (
+              <span className="alexa-ping absolute inset-0 rounded-full" />
+            )}
           </div>
 
           <div className="min-w-0 flex-1">
@@ -193,7 +119,7 @@ export default function AlexaNotification({ notification, onClose }) {
                 {notification.llmPowered ? "✦ LLM" : "fallback"}
               </span>
 
-              {speaking && !muted && (
+              {isSpeaking && !muted && (
                 <span className="flex items-center gap-0.5" title="Speaking…">
                   <span className="tts-bar h-2 w-0.5 rounded bg-sky-400" />
                   <span className="tts-bar tts-bar-2 h-3 w-0.5 rounded bg-sky-400" />
@@ -205,7 +131,7 @@ export default function AlexaNotification({ notification, onClose }) {
                 <div className="ml-auto flex items-center gap-1">
                   {!muted && (
                     <button
-                      onClick={replay}
+                      onClick={() => onReplay?.(notification)}
                       title="Replay voice"
                       className="rounded p-0.5 text-slate-500 transition hover:bg-slate-800 hover:text-sky-300"
                       aria-label="Replay voice"
@@ -214,11 +140,13 @@ export default function AlexaNotification({ notification, onClose }) {
                     </button>
                   )}
                   <button
-                    onClick={toggleMute}
+                    onClick={onToggleMute}
                     title={muted ? "Unmute voice" : "Mute voice"}
                     className={[
                       "rounded p-0.5 transition hover:bg-slate-800",
-                      muted ? "text-slate-500 hover:text-slate-300" : "text-sky-300",
+                      muted
+                        ? "text-slate-500 hover:text-slate-300"
+                        : "text-sky-300",
                     ].join(" ")}
                     aria-label={muted ? "Unmute voice" : "Mute voice"}
                   >
@@ -279,7 +207,7 @@ export default function AlexaNotification({ notification, onClose }) {
           </div>
 
           <button
-            onClick={() => setVisible(false)}
+            onClick={dismiss}
             className="shrink-0 rounded-md p-1 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
             aria-label="Dismiss"
           >
@@ -287,6 +215,176 @@ export default function AlexaNotification({ notification, onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Stack of Alexa notifications — like a phone's notification tray. All issues
+// appear at once, stacked vertically (most-severe at the top), and a single
+// narrator reads them out ONE BY ONE in order, highlighting the card it is
+// currently speaking. At most `maxVisible` cards are shown; any overflow is
+// summarised with a "+N more" chip.
+//
+// Props:
+//   notifications: [{ id, text, explanation, llmPowered, tone }] — ordered
+//   onDismiss: (id) => void  — remove a single notification
+//   onDismissAll: () => void — clear the whole stack
+//   maxVisible: number (default 4)
+// ───────────────────────────────────────────────────────────────────────────
+export default function AlexaNotification({
+  notifications = [],
+  onDismiss,
+  onDismissAll,
+  maxVisible = 4,
+}) {
+  const ttsSupported =
+    typeof window !== "undefined" && "speechSynthesis" in window;
+
+  const [muted, setMuted] = useState(() => {
+    try {
+      return localStorage.getItem("alexa_tts_muted") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [speakingId, setSpeakingId] = useState(null);
+  // Ids already read aloud (so the sequence never repeats a line) + a tick to
+  // re-trigger the narrator after each utterance finishes.
+  const spokenIds = useRef(new Set());
+  const knownIds = useRef(new Set());
+  const [tick, setTick] = useState(0);
+
+  // Persist mute preference.
+  useEffect(() => {
+    try {
+      localStorage.setItem("alexa_tts_muted", muted ? "1" : "0");
+    } catch {
+      /* ignore storage failures */
+    }
+  }, [muted]);
+
+  const idsKey = notifications.map((n) => n.id).join("|");
+
+  // When a genuinely NEW batch arrives (new ids appear — e.g. a fresh "Go"),
+  // cancel any in-progress speech so the new stack starts narrating from the
+  // top. Removing a single card does NOT reset the sequence.
+  useEffect(() => {
+    const hasNew = notifications.some((n) => !knownIds.current.has(n.id));
+    notifications.forEach((n) => knownIds.current.add(n.id));
+    if (hasNew && ttsSupported) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      setTick((t) => t + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
+
+  // Sequential narrator: speak the first not-yet-spoken notification, then on
+  // completion advance to the next. Honours mute and stops cleanly.
+  useEffect(() => {
+    if (!ttsSupported) return;
+    if (muted) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+    if (window.speechSynthesis.speaking) return;
+    const next = notifications.find((n) => !spokenIds.current.has(n.id));
+    if (!next) return;
+
+    const synth = window.speechSynthesis;
+    const utter = new SpeechSynthesisUtterance(next.text);
+    utter.rate = 1.02;
+    utter.pitch = 1.0;
+    const voice = pickVoice();
+    if (voice) utter.voice = voice;
+    utter.onstart = () => setSpeakingId(next.id);
+    const finish = () => {
+      spokenIds.current.add(next.id);
+      setSpeakingId(null);
+      setTick((t) => t + 1); // re-arm for the next line
+    };
+    utter.onend = finish;
+    utter.onerror = finish;
+    // Some browsers need a tick after cancel() before speak() takes effect.
+    const t = setTimeout(() => synth.speak(utter), 80);
+    return () => clearTimeout(t);
+  }, [notifications, muted, ttsSupported, tick]);
+
+  // Stop speech if the stack empties or unmounts.
+  useEffect(() => {
+    if (!ttsSupported) return;
+    if (notifications.length === 0) window.speechSynthesis.cancel();
+    return () => window.speechSynthesis.cancel();
+  }, [notifications.length, ttsSupported]);
+
+  const toggleMute = () =>
+    setMuted((m) => {
+      const next = !m;
+      if (next && ttsSupported) window.speechSynthesis.cancel();
+      return next;
+    });
+
+  // Replay a single line on demand (interrupts the sequence, then resumes).
+  const replay = (n) => {
+    if (!ttsSupported || muted) return;
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const utter = new SpeechSynthesisUtterance(n.text);
+    utter.rate = 1.02;
+    const voice = pickVoice();
+    if (voice) utter.voice = voice;
+    utter.onstart = () => setSpeakingId(n.id);
+    const done = () => {
+      setSpeakingId(null);
+      setTick((t) => t + 1);
+    };
+    utter.onend = done;
+    utter.onerror = done;
+    setTimeout(() => synth.speak(utter), 80);
+  };
+
+  if (!notifications.length) return null;
+
+  const visible = notifications.slice(0, maxVisible);
+  const overflow = notifications.length - visible.length;
+
+  return (
+    <div className="fixed bottom-5 right-5 z-50 flex max-h-[calc(100vh-2.5rem)] flex-col items-end gap-2 overflow-visible">
+      {/* Stack header — count + clear all */}
+      {notifications.length > 1 && (
+        <div className="flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/90 px-3 py-1 shadow-lg backdrop-blur">
+          <span className="text-[11px] font-semibold text-slate-300">
+            🔔 {notifications.length} notifications
+          </span>
+          <button
+            onClick={onDismissAll}
+            className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 transition hover:text-slate-200"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {visible.map((n) => (
+        <NotificationCard
+          key={n.id}
+          notification={n}
+          isSpeaking={speakingId === n.id}
+          muted={muted}
+          ttsSupported={ttsSupported}
+          onToggleMute={toggleMute}
+          onReplay={replay}
+          onDismiss={onDismiss}
+        />
+      ))}
+
+      {overflow > 0 && (
+        <div className="rounded-full border border-slate-700/60 bg-slate-900/80 px-3 py-1 text-[10px] font-semibold text-slate-400 shadow">
+          +{overflow} more notification{overflow > 1 ? "s" : ""}
+        </div>
+      )}
     </div>
   );
 }

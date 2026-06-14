@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from "react-router-dom";
-import { Brain, History, Lightbulb, Network } from "lucide-react";
+import { Brain, History, Lightbulb, Network, ShieldAlert } from "lucide-react";
 
 export default function Layout() {
   const linkClass = ({ isActive }) =>
@@ -29,6 +29,10 @@ export default function Layout() {
           <NavLink to="/patterns" className={linkClass}>
             <Network className="w-4 h-4" />
             Patterns
+          </NavLink>
+          <NavLink to="/safety" className={linkClass}>
+            <ShieldAlert className="w-4 h-4" />
+            Safety
           </NavLink>
           <NavLink to="/history" className={linkClass}>
             <History className="w-4 h-4" />

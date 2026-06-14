@@ -36,6 +36,7 @@ SERVICES = {
     "patterns": os.environ.get("PATTERNS_SERVICE_URL", "http://localhost:8003"),
     "devices": os.environ.get("DEVICES_SERVICE_URL", "http://localhost:8004"),
     "orchestrate": os.environ.get("ORCHESTRATOR_SERVICE_URL", "http://localhost:8005"),
+    "safety": os.environ.get("SAFETY_SERVICE_URL", "http://localhost:8006"),
 }
 
 

@@ -39,6 +39,7 @@ def test_departure_anomaly_detected_via_full_stack(client):
     assert ctx["household_id"] == "H001"
     assert ctx["context_type"] in {
         "departure_anomaly", "normal", "duration_anomaly", "routine_suggestion",
+        "care_alert", "security_alert",
     }
     assert isinstance(ctx["relevant_patterns"], list)
     assert isinstance(ctx["anomalies"], list)

@@ -29,6 +29,21 @@ class NarrationResponse(BaseModel):
     reasoning: str = Field("", description="Why this phrasing / which path was used.")
 
 
+class NarrationItem(NarrationResponse):
+    """One per-anomaly narration, with the issue it describes."""
+
+    device: str | None = Field(None, description="Device/person the issue is about.")
+    anomaly_type: str | None = Field(None, description="The anomaly type narrated.")
+    severity: str = Field("low", description="Issue severity: high / medium / low.")
+
+
+class NarrationListResponse(BaseModel):
+    """An ordered list of per-anomaly narrations (most severe first)."""
+
+    narrations: list[NarrationItem] = Field(default_factory=list)
+
+
+
 class EvaluateStateRequest(BaseModel):
     """A user-supplied what-if snapshot to compare against learned patterns."""
 
@@ -119,6 +134,21 @@ async def narrate_context(context: ContextObject) -> NarrationResponse:
     """
     result = await narrator.narrate(context)
     return NarrationResponse(**result)
+
+
+@router.post("/narrate/each", response_model=NarrationListResponse)
+async def narrate_each_context(context: ContextObject) -> NarrationListResponse:
+    """Narrate EACH detected issue as its own focused Alexa line.
+
+    The frontend calls this instead of ``/narrate`` when it wants to show the
+    issues as a *sequence* of floating notifications spoken one-by-one: each
+    anomaly gets its own LLM call (so no detail is lost to compression), and the
+    list comes back ordered most-severe-first.
+    """
+    items = await narrator.narrate_each(context)
+    return NarrationListResponse(
+        narrations=[NarrationItem(**item) for item in items]
+    )
 
 
 @router.get("/narrate/debug")

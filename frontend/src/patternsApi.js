@@ -58,6 +58,17 @@ export const api = {
       body: JSON.stringify(context),
     }),
 
+  // Narrate EACH detected issue separately so no detail is lost to compression.
+  // Returns { narrations: [{ alexa_response, explanation, llm_powered,
+  // device, anomaly_type, severity }, ...] } ordered most-severe-first, ready
+  // to be shown/spoken one-by-one as a sequence of floating notifications.
+  narrateEach: (context) =>
+    request(`/context/narrate/each`, {
+      method: "POST",
+      body: JSON.stringify(context),
+    }),
+
+
   // Fetch events for a household. With no options it returns the full
   // chronological history (the backend paginates); pass { since, limit } to
   // constrain the window or grab only the latest N.

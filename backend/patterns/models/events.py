@@ -22,6 +22,9 @@ class DeviceAction(str, Enum):
     CLOSE = "CLOSE"
     ARRIVE = "ARRIVE"  # presence sensor: a person arrived
     LEAVE = "LEAVE"    # presence sensor: a person left
+    # --- Human-/routine-centric momentary pings (no ON/OFF state) ---
+    ACTIVE = "ACTIVE"  # activity sensor: a person was detected moving/awake
+    TAKEN = "TAKEN"    # a scheduled action was confirmed done (e.g. medicine)
 
 
 class DeviceType(str, Enum):
@@ -34,6 +37,9 @@ class DeviceType(str, Enum):
     DOOR = "door"
     MOTOR = "motor"
     PRESENCE = "presence"
+    # --- Indian-context care/security sensors ---
+    ACTIVITY = "activity"   # motion/activity tied to a person (elderly care)
+    MEDICINE = "medicine"   # smart pill box / medicine reminder
     OTHER = "other"
 
 

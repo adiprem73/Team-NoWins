@@ -15,6 +15,7 @@ Design
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -66,6 +67,20 @@ Rules for BOTH fields:
 - Refer to devices and rooms in plain words (son_room_fan -> "the fan in the
   son's room", water_motor -> "the water motor"). Say energy as "kilowatt-hours"
   (or "watt-hours" for small amounts), and times naturally ("7:30 AM", "3 hours").
+- People-/care-/security sensors are NOT appliances — speak about the PERSON:
+  grandpa_activity -> "Grandpa", ananya_presence -> "Ananya",
+  maid_presence -> "the house helper", grandma_medicine -> "Grandma's medicine".
+  For a water motor running long, you may gently note the overhead tank may
+  already be full.
+
+Tone for the people-centric situations (be caring, never alarmist):
+- Elderly inactivity / a child who hasn't returned / a missed medicine: warm,
+  concerned, and suggest a gentle check-in or reminder — e.g. "I haven't noticed
+  Grandpa's usual morning activity yet today. Would you like me to check in on
+  him?" or "Ananya usually returns from tuition by now. Want me to check in?"
+- Activity at an unusual hour (a helper entering off-schedule): calm but alert,
+  and offer to check the cameras — e.g. "Someone entered the house outside the
+  usual schedule. Would you like me to check the security cameras?"
 
 Respond with a JSON object exactly like:
 {"alexa_response": "...", "explanation": "..."}"""
@@ -82,6 +97,11 @@ _DEVICE_WATTS = {
     "motor": 750,
     "door": 0,
     "tube": 40,
+    # Indian-context appliances
+    "stove": 1200,
+    "kettle": 1500,
+    "inverter": 800,
+    "clothesline": 0,
 }
 
 
@@ -111,9 +131,54 @@ def _humanize_device(device_id: str) -> str:
         "motor": "motor",
         "door": "door",
         "presence": "presence sensor",
+        "stove": "gas stove",
+        "kettle": "kettle",
+        "inverter": "inverter",
+        "clothesline": "clothesline",
     }.get(device, device)
     location = " ".join(location_tokens).replace("son", "son's").strip()
     return f"{location} {pretty_device}".strip() if location else pretty_device
+
+
+# Friendly names for the people/roles behind activity, presence and medicine
+# sensors (``grandpa_activity`` -> "Grandpa", ``maid_presence`` -> "the house
+# helper", ``grandma_medicine`` -> "Grandma's medicine").
+_PERSON_LABELS = {
+    "grandpa": "Grandpa",
+    "grandfather": "Grandpa",
+    "grandma": "Grandma",
+    "grandmother": "Grandma",
+    "son": "your son",
+    "daughter": "your daughter",
+    "mother": "Mom",
+    "father": "Dad",
+    "maid": "the house helper",
+    "helper": "the house helper",
+    "cook": "the cook",
+    "driver": "the driver",
+    "caretaker": "the caretaker",
+}
+
+
+def _person_label(token: str) -> str:
+    token = (token or "").strip().lower()
+    return _PERSON_LABELS.get(token, token.replace("-", " ").title() or "someone")
+
+
+def _humanize_subject(device_id: str) -> str:
+    """Render a people-/care-centric sensor id as a natural subject.
+
+    Falls back to :func:`_humanize_device` for ordinary electrical devices so
+    the narrator can call this uniformly for any anomaly.
+    """
+    if not device_id:
+        return "someone"
+    for suffix in ("_activity", "_presence"):
+        if device_id.endswith(suffix):
+            return _person_label(device_id[: -len(suffix)])
+    if device_id.endswith("_medicine"):
+        return f"{_person_label(device_id[: -len('_medicine')])}'s medicine"
+    return _humanize_device(device_id)
 
 
 def _fallback_line(context: ContextObject) -> str:
@@ -126,6 +191,7 @@ def _fallback_line(context: ContextObject) -> str:
     leads = []
     for a in anomalies[:2]:
         dev = _humanize_device(a.device or "")
+        subj = _humanize_subject(a.device or "")
         if a.type.value == "device_left_on":
             leads.append(f"the {dev} is still on")
         elif a.type.value == "duration_exceeded":
@@ -134,10 +200,24 @@ def _fallback_line(context: ContextObject) -> str:
             leads.append(f"the {dev} has been on for a very long time")
         elif a.type.value == "missed_routine":
             leads.append(f"the {dev} didn't run at its usual time")
+        elif a.type.value == "inactivity":
+            leads.append(f"there's been no sign of {subj}'s usual activity")
+        elif a.type.value == "missed_arrival":
+            leads.append(f"{subj} hasn't returned home at the usual time")
+        elif a.type.value == "missed_medicine":
+            leads.append(f"{subj} seems to have been missed")
+        elif a.type.value == "unexpected_activity":
+            leads.append(f"{subj} was active outside the usual schedule")
         else:
             leads.append(f"something seems off with the {dev}")
 
     joined = " and ".join(leads)
+    # Care/security situations warrant a check-in tone rather than "take care of it".
+    types = {a.type.value for a in anomalies}
+    if "unexpected_activity" in types:
+        return f"Heads up — {joined}. Would you like me to check the cameras?"
+    if types & {"inactivity", "missed_arrival", "missed_medicine"}:
+        return f"Just checking in — {joined}. Would you like me to send a reminder or check in?"
     extra = ""
     if len(anomalies) > 2:
         more = len(anomalies) - 2
@@ -174,6 +254,7 @@ def _fallback_explanation(context: ContextObject) -> str:
     sentences: list[str] = []
     for a in anomalies:
         dev = _humanize_device(a.device or "")
+        subj = _humanize_subject(a.device or "")
         when = _pattern_time_for_device(context, a.device or "")
         if a.type.value == "device_left_on":
             usual = f" Normally it's switched off around {when}." if when else ""
@@ -196,6 +277,32 @@ def _fallback_explanation(context: ContextObject) -> str:
             sentences.append(
                 f"The {dev} hasn't run yet today.{usual} Since that time has "
                 f"passed, it may have been skipped."
+            )
+        elif a.type.value == "inactivity":
+            usual = f" {subj} is usually active around {when}." if when else ""
+            sentences.append(
+                f"I haven't noticed {subj}'s usual activity yet today.{usual} "
+                f"Since that time has passed without any sign, it seemed worth a "
+                f"gentle check-in."
+            )
+        elif a.type.value == "missed_arrival":
+            usual = f" {subj} usually gets home around {when}." if when else ""
+            sentences.append(
+                f"{subj} hasn't returned home yet.{usual} As that time has gone "
+                f"by, you may want to check in."
+            )
+        elif a.type.value == "missed_medicine":
+            usual = f" The dose is usually taken around {when}." if when else ""
+            sentences.append(
+                f"{subj} hasn't been confirmed today.{usual} A quick reminder "
+                f"might help."
+            )
+        elif a.type.value == "unexpected_activity":
+            usual = f" The usual time for this is around {when}." if when else ""
+            sentences.append(
+                f"{subj} was active at an unusual hour today.{usual} Because it "
+                f"falls well outside the normal schedule, it stood out as worth "
+                f"a look."
             )
         else:
             sentences.append(f"Something looks off with the {dev}.")
@@ -297,6 +404,25 @@ def _energy_facts(context: ContextObject) -> list[str]:
                 f"{dev} ({dev_id}): expected to run earlier today{when_part} but "
                 f"hasn't yet as of {context.current_time}."
             )
+
+        elif a.type.value in ("inactivity", "missed_arrival", "missed_medicine"):
+            subj = _humanize_subject(dev_id)
+            when = usual_time.get(dev_id)
+            when_part = f" around {when}" if when else ""
+            verb = {
+                "inactivity": "is usually active",
+                "missed_arrival": "usually returns home",
+                "missed_medicine": "is usually taken",
+            }[a.type.value]
+            facts.append(
+                f"{subj} ({dev_id}): {verb}{when_part}, but nothing has been seen "
+                f"today as of {context.current_time}."
+            )
+
+        elif a.type.value == "unexpected_activity":
+            subj = _humanize_subject(dev_id)
+            # detail already embeds the observed + usual times.
+            facts.append(f"{subj} ({dev_id}): {detail}")
 
     return facts
 
@@ -465,3 +591,112 @@ async def narrate(context: ContextObject) -> dict:
         "llm_powered": False,
         "reasoning": reason,
     }
+
+
+# ─── Per-anomaly narration (one focused message per issue) ───────────────────
+
+# Order issues most-urgent-first so the spoken queue leads with what matters.
+_SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
+# When one device trips several detectors, prefer the most *specific* one. The
+# absolute "active too long" safety-net and a generic "missed routine" are the
+# least specific, so a precise device_left_on / duration_exceeded wins.
+_TYPE_SPECIFICITY = {"device_active_too_long": 2, "missed_routine": 1}
+# Cap how many issues we narrate individually so a noisy what-if state can't
+# fan out into dozens of concurrent LLM calls (and dozens of pop-ups).
+MAX_NARRATIONS = 6
+
+
+def _dedupe_by_device(anomalies: list) -> list:
+    """One issue per device, most-urgent-and-specific first.
+
+    Sorting by (severity, specificity) before de-duplicating means that when a
+    device trips multiple detectors (e.g. a fan flagged both ``device_left_on``
+    and ``device_active_too_long``) we keep the single most informative anomaly
+    and drop the redundant one — fewer LLM calls and fewer duplicate pop-ups.
+    Anomalies without a device (rare) are always kept.
+    """
+    ordered = sorted(
+        anomalies,
+        key=lambda a: (
+            _SEVERITY_RANK.get(a.severity, 1),
+            _TYPE_SPECIFICITY.get(a.type.value, 0),
+        ),
+    )
+    seen: set[str] = set()
+    out: list = []
+    for a in ordered:
+        if a.device is not None:
+            if a.device in seen:
+                continue
+            seen.add(a.device)
+        out.append(a)
+    return out
+
+
+
+def _single_anomaly_context(context: ContextObject, anomaly) -> ContextObject:
+    """Build a context narrowed to ONE anomaly so the LLM can speak about it in
+    full detail instead of cramming every issue into a single short paragraph.
+
+    The sub-context keeps the shared facts (time, who's home, active devices)
+    but exposes only the one anomaly and the learned pattern(s) it relates to,
+    and re-derives its own ``context_type`` so the narration tone matches.
+    """
+    from patterns.context_builder.builder import _classify
+
+    related = [
+        p
+        for p in (context.relevant_patterns or [])
+        if anomaly.related_pattern_id and p.pattern_id == anomaly.related_pattern_id
+    ]
+    if not related:
+        # No direct id link — keep patterns that mention this device by name.
+        related = [
+            p
+            for p in (context.relevant_patterns or [])
+            if anomaly.device and anomaly.device in (p.description or "")
+        ]
+
+    return ContextObject(
+        context_type=_classify([anomaly]),
+        household_id=context.household_id,
+        current_time=context.current_time,
+        people_home=context.people_home,
+        active_devices=context.active_devices,
+        relevant_patterns=related,
+        anomalies=[anomaly],
+        recent_events=context.recent_events,
+    )
+
+
+async def narrate_each(context: ContextObject) -> list[dict]:
+    """Narrate EACH detected issue as its own focused Alexa line.
+
+    Instead of one prompt describing every anomaly at once (which forces the LLM
+    to compress and drop specifics), this splits the context into one sub-context
+    per anomaly, narrates them concurrently, and returns an ordered list — most
+    severe first — so the frontend can show/speak them one-by-one as a sequence
+    of floating notifications.
+
+    Each returned item has the same shape as :func:`narrate` plus ``device``,
+    ``anomaly_type`` and ``severity`` so the UI can label and order them. When
+    there are no anomalies a single "all clear" item is returned.
+    """
+    anomalies = list(context.anomalies or [])
+    if not anomalies:
+        one = await narrate(context)
+        one.update({"device": None, "anomaly_type": None, "severity": "low"})
+        return [one]
+
+    ordered = _dedupe_by_device(anomalies)[:MAX_NARRATIONS]
+    sub_contexts = [_single_anomaly_context(context, a) for a in ordered]
+    results = await asyncio.gather(*(narrate(c) for c in sub_contexts))
+
+    out: list[dict] = []
+    for anomaly, result in zip(ordered, results):
+        item = dict(result)
+        item["device"] = anomaly.device
+        item["anomaly_type"] = anomaly.type.value
+        item["severity"] = anomaly.severity
+        out.append(item)
+    return out

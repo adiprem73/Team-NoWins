@@ -64,10 +64,24 @@ def _pattern_time(p: BasePattern) -> str | None:
 def _classify(anomalies: list[Anomaly]) -> ContextType:
     """Pick the most salient context type from the detected anomalies.
 
-    Priority: a device left on (departure) outranks an over-running device
-    (duration), which outranks a merely missed routine (suggestion).
+    Priority (most to least urgent):
+      1. an off-schedule entry (security) — a person/helper active when they
+         shouldn't be outranks everything;
+      2. a people-safety miss (care) — elderly inactivity, missed medicine, a
+         child who hasn't returned;
+      3. a device left on (departure);
+      4. an over-running / too-long device (duration);
+      5. a merely missed device routine (suggestion).
     """
     types = {a.type for a in anomalies}
+    if AnomalyType.UNEXPECTED_ACTIVITY in types:
+        return ContextType.SECURITY_ALERT
+    if types & {
+        AnomalyType.INACTIVITY,
+        AnomalyType.MISSED_MEDICINE,
+        AnomalyType.MISSED_ARRIVAL,
+    }:
+        return ContextType.CARE_ALERT
     if AnomalyType.DEVICE_LEFT_ON in types:
         return ContextType.DEPARTURE_ANOMALY
     if (

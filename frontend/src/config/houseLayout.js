@@ -22,6 +22,15 @@ export const ROOMS = {
   },
   entrance: { name: "Entrance", col: "1 / 2", row: "3 / 4", accent: "#f97316" },
   utility: { name: "Utility", col: "2 / 4", row: "3 / 4", accent: "#94a3b8" },
+
+  // --- H003 (Indian-context home) rooms: a clean, non-overlapping 3x3 with
+  // the shared son_room (2/1), porch (1/2) and entrance (1/3) cells. ---
+  grandpa_room: { name: "Grandpa's Room", col: "1 / 2", row: "1 / 2", accent: "#f472b6" },
+  pooja_room: { name: "Pooja Room", col: "3 / 4", row: "1 / 2", accent: "#fbbf24" },
+  kitchen: { name: "Kitchen", col: "2 / 3", row: "2 / 3", accent: "#fb7185" },
+  terrace: { name: "Terrace", col: "3 / 4", row: "2 / 3", accent: "#34d399" },
+  store_room: { name: "Utility", col: "2 / 3", row: "3 / 4", accent: "#94a3b8" },
+  grandma_room: { name: "Grandma's Room", col: "3 / 4", row: "3 / 4", accent: "#c084fc" },
 };
 
 // Per device-type rendering + on/off action semantics.
@@ -37,6 +46,18 @@ export const DEVICE_KIND = {
     offAction: "CLOSE",
     onColor: "#f87171",
   },
+  // --- Indian-context device kinds (H003) ---
+  motor_inverter: { icon: "🔋", onAction: "ON", offAction: "OFF", onColor: "#4ade80" },
+  stove: { icon: "🔥", onAction: "ON", offAction: "OFF", onColor: "#fb923c" },
+  kettle: { icon: "🫖", onAction: "ON", offAction: "OFF", onColor: "#f59e0b" },
+  bell: { icon: "🔔", onAction: "ON", offAction: "OFF", onColor: "#facc15" },
+  speaker: { icon: "🔊", onAction: "ON", offAction: "OFF", onColor: "#a78bfa" },
+  clothesline: { icon: "🧺", onAction: "ON", offAction: "OFF", onColor: "#38bdf8" },
+  can: { icon: "🪣", onAction: "ON", offAction: "OFF", onColor: "#60a5fa" },
+  // People / care sensors — momentary signals, shown for context.
+  presence: { icon: "🧍", onAction: "ARRIVE", offAction: "LEAVE", onColor: "#34d399" },
+  activity: { icon: "🚶", onAction: "ACTIVE", offAction: "IDLE", onColor: "#34d399" },
+  medicine: { icon: "💊", onAction: "TAKEN", offAction: "PENDING", onColor: "#f472b6" },
 };
 
 // Households: each device has id, label, type, room.
@@ -84,6 +105,39 @@ export const HOUSEHOLDS = {
         room: "utility",
       },
       { id: "front_door", label: "Front Door", type: "door", room: "entrance" },
+    ],
+  },
+  H003: {
+    label: "H003 · Indian-Context Care Home",
+    people: ["grandpa", "grandma", "father", "mother", "son", "ananya", "maid"],
+    devices: [
+      // Elderly care
+      { id: "grandpa_activity", label: "Grandpa Activity", type: "activity", room: "grandpa_room" },
+      { id: "grandma_medicine", label: "Grandma Medicine", type: "medicine", room: "grandma_room" },
+      // Morning pooja
+      { id: "pooja_lamp", label: "Pooja Lamp", type: "light", room: "pooja_room" },
+      { id: "temple_bell", label: "Temple Bell", type: "bell", room: "pooja_room" },
+      { id: "bhajan_speaker", label: "Bhajan Speaker", type: "speaker", room: "pooja_room" },
+      // Son departure (ordinary appliances)
+      { id: "son_room_fan", label: "Fan", type: "fan", room: "son_room" },
+      { id: "son_room_light", label: "Light", type: "light", room: "son_room" },
+      // Entrance: door + people/security/delivery sensors
+      { id: "main_door", label: "Main Door", type: "door", room: "entrance" },
+      { id: "maid_presence", label: "Helper", type: "presence", room: "entrance" },
+      { id: "ananya_presence", label: "Ananya", type: "presence", room: "entrance" },
+      { id: "milk_delivery", label: "Milk Delivery", type: "presence", room: "entrance" },
+      // Kitchen: chai + dinner + chore
+      { id: "chai_kettle", label: "Chai Kettle", type: "kettle", room: "kitchen" },
+      { id: "kitchen_light", label: "Kitchen Light", type: "light", room: "kitchen" },
+      { id: "kitchen_gas_stove", label: "Gas Stove", type: "stove", room: "kitchen" },
+      { id: "water_can_refill", label: "Water Can", type: "can", room: "kitchen" },
+      // Terrace
+      { id: "terrace_clothesline", label: "Clothesline", type: "clothesline", room: "terrace" },
+      // Porch security light
+      { id: "porch_light", label: "Porch Light", type: "light", room: "porch" },
+      // Utility: overhead-tank motor + inverter
+      { id: "water_motor", label: "Water Motor", type: "motor", room: "store_room" },
+      { id: "inverter", label: "Inverter", type: "motor_inverter", room: "store_room" },
     ],
   },
 };

@@ -95,7 +95,7 @@ export default function SidePanel({ context, patterns, state, events, loading })
 
 function ContextView({ context, loading }) {
   if (!context) {
-    return <Empty text={loading ? "Generating context…" : "No context yet. Load demo data."} />;
+    return <Empty text={loading ? "Generating context…" : "All normal. Paint the device states and hit ▶ Go to run a check."} />;
   }
   const badge = CONTEXT_BADGE[context.context_type] || CONTEXT_BADGE.normal;
   const people = Object.entries(context.people_home || {});

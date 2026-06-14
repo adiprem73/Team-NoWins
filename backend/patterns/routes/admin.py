@@ -19,6 +19,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 _SCENARIOS = {
     "H001": "son_departure",
     "H002": "ac_motor_light",
+    "H003": "indian_context_care",
 }
 
 
@@ -29,6 +30,10 @@ def _generate(household_id: str):
         return generate(days=30, include_today_anomaly=True)
     if household_id == "H002":
         from patterns.tests.sample_data_h002 import generate
+
+        return generate(days=30)
+    if household_id == "H003":
+        from patterns.tests.sample_data_h003 import generate
 
         return generate(days=30)
     raise HTTPException(status_code=404, detail=f"Unknown scenario: {household_id}")

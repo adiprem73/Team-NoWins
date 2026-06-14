@@ -26,31 +26,39 @@ export default function Patterns() {
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(true);
   const [toast, setToast] = useState(null);
-  // Alexa-voice popup driven by the LLM narrator endpoint.
-  const [alexa, setAlexa] = useState(null);
+  // Alexa-voice popups driven by the LLM narrator. Each detected issue is
+  // narrated separately (so no detail is lost) and queued; the queue is played
+  // one-by-one as a sequence of floating notifications. Index 0 is on screen.
+  const [alexaQueue, setAlexaQueue] = useState([]);
 
   const flash = useCallback((msg, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 2600);
   }, []);
 
-  // Ask the backend to phrase a context as a spoken Alexa line, then show it
-  // as a notification. Never throws — narration is best-effort.
+  // Ask the backend to phrase a context as spoken Alexa lines — ONE focused
+  // line per detected issue — then queue them so they appear and are read out
+  // one after another. Never throws — narration is best-effort.
   const speak = useCallback(async (ctx) => {
     if (!ctx) return;
     try {
-      const n = await api.narrate(ctx);
-      setAlexa({
-        id: Date.now(),
-        text: n.alexa_response,
-        explanation: n.explanation,
-        llmPowered: n.llm_powered,
-        tone: (ctx.anomalies?.length || 0) > 0 ? "alert" : "calm",
-      });
+      const { narrations } = await api.narrateEach(ctx);
+      const items = (narrations || [])
+        .filter((n) => n && n.alexa_response)
+        .map((n, i) => ({
+          id: `${Date.now()}-${i}-${n.device || "all"}`,
+          text: n.alexa_response,
+          explanation: n.explanation,
+          llmPowered: n.llm_powered,
+          tone:
+            n.severity === "high" || n.severity === "medium" ? "alert" : "calm",
+        }));
+      setAlexaQueue(items);
     } catch {
       /* narration is optional; ignore failures */
     }
   }, []);
+
 
   // Evaluate the current draft scenario (devices + clock) against the learned
   // patterns. This is the "Go" action — the heart of the flow.
@@ -83,11 +91,13 @@ export default function Patterns() {
     [householdId, simTime, draftActive, state, flash, speak],
   );
 
-  // Load reference data (patterns, persisted snapshot, events) and seed the
-  // draft scenario from the snapshot so the floor plan starts populated, then
-  // run an initial evaluation so the panel isn't empty.
+  // Load reference data (patterns, persisted snapshot, events). The floor plan
+  // starts in a CLEAN, all-off state with no anomalies or notifications — the
+  // user paints the scenario and hits "Go" to start a simulation. We do NOT
+  // auto-evaluate or auto-speak on first load, so arriving on the page always
+  // shows a calm, normal home until the user explicitly runs a check.
   const loadAll = useCallback(
-    async (hid = householdId, time = simTime) => {
+    async (hid = householdId) => {
       setBusy(true);
       try {
         const [s, p, e] = await Promise.all([
@@ -98,17 +108,12 @@ export default function Patterns() {
         setState(s);
         setPatterns(p);
         setEvents(e);
-        const draft = new Set(s?.active_devices || []);
-        setDraftActive(draft);
-        setConnected(true);
-        const c = await api.evaluate(hid, {
-          at: time,
-          activeDevices: [...draft],
-          peopleHome: s?.people_home || {},
-        });
-        setContext(c);
+        // Start with everything OFF (empty draft) — a clean slate.
+        setDraftActive(new Set());
+        setContext(null);
+        setAlexaQueue([]);
         setDirty(false);
-        speak(c);
+        setConnected(true);
       } catch (e) {
         setConnected(false);
         flash(
@@ -119,12 +124,12 @@ export default function Patterns() {
         setBusy(false);
       }
     },
-    [householdId, simTime, flash, speak],
+    [householdId, flash],
   );
 
   // Initial + on household change.
   useEffect(() => {
-    loadAll(householdId, simTime);
+    loadAll(householdId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [householdId]);
 
@@ -163,13 +168,15 @@ export default function Patterns() {
       flash(
         `Seeded ${res.events_stored} events · ${res.patterns_extracted} patterns`,
       );
-      await loadAll(householdId, simTime);
+      // After loading demo data, return to the clean all-off slate so the user
+      // starts the simulation themselves.
+      await loadAll(householdId);
     } catch (e) {
       flash(`Seed failed: ${e.message}`, false);
     } finally {
       setBusy(false);
     }
-  }, [householdId, simTime, loadAll, flash]);
+  }, [householdId, loadAll, flash]);
 
   return (
     <div className="mx-auto flex min-h-full max-w-[1400px] flex-col gap-4 p-4">
@@ -220,7 +227,14 @@ export default function Patterns() {
         </div>
       )}
 
-      <AlexaNotification notification={alexa} onClose={() => setAlexa(null)} />
+      <AlexaNotification
+        notifications={alexaQueue}
+        onDismiss={(id) =>
+          setAlexaQueue((q) => q.filter((n) => n.id !== id))
+        }
+        onDismissAll={() => setAlexaQueue([])}
+        maxVisible={4}
+      />
     </div>
   );
 }

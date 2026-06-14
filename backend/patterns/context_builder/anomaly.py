@@ -314,7 +314,45 @@ def detect_active_too_long(
     return anomalies
 
 
-# ─── Detector 4: missed routine ──────────────────────────────────────────────
+# ─── Detector 4: missed routine (devices + people + medicine) ────────────────
+
+# Actions that represent an *expected activation* — something the home expects
+# to happen around a learned time each day. A device turning ON/OPEN, a person
+# ARRIVE-ing, an elderly person's ACTIVE ping, or a medicine being TAKEN.
+ROUTINE_ACTIVATIONS = {"ON", "OPEN", "ARRIVE", "ACTIVE", "TAKEN"}
+
+# Map the missed activation's action to a specific, well-typed anomaly so the
+# narrator can phrase a care alert ("Grandpa hasn't been active") differently
+# from a plain device suggestion ("the porch light didn't turn on").
+_MISSED_TYPE_BY_ACTION = {
+    "ARRIVE": AnomalyType.MISSED_ARRIVAL,
+    "ACTIVE": AnomalyType.INACTIVITY,
+    "TAKEN": AnomalyType.MISSED_MEDICINE,
+}
+_CARE_TYPES = {
+    AnomalyType.MISSED_ARRIVAL,
+    AnomalyType.INACTIVITY,
+    AnomalyType.MISSED_MEDICINE,
+}
+
+
+def _missed_detail(p: TimePattern, atype: AnomalyType) -> str:
+    if atype is AnomalyType.INACTIVITY:
+        return (
+            f"No activity from {p.device} since the usual {p.usual_time}; "
+            f"the routine appears to have been missed."
+        )
+    if atype is AnomalyType.MISSED_ARRIVAL:
+        return (
+            f"{p.device} usually arrives around {p.usual_time} "
+            f"but hasn't returned today."
+        )
+    if atype is AnomalyType.MISSED_MEDICINE:
+        return (
+            f"The {p.usual_time} medicine routine ({p.device}) "
+            f"has not been confirmed today."
+        )
+    return f"{p.device} usually {p.action} around {p.usual_time} but hasn't today."
 
 
 def detect_missed_routine(
@@ -323,13 +361,21 @@ def detect_missed_routine(
     recent_events: list[Event],
     now: datetime,
 ) -> list[Anomaly]:
-    """Fire when a high-confidence ON/OPEN routine's window has passed today but
-    the action never happened.
+    """Fire when a high-confidence *activation* routine's window has passed today
+    but the action never happened.
+
+    This single detector covers four shapes of "an expected thing didn't occur":
+
+      * a device that usually turns ON/OPEN didn't  -> ``missed_routine``
+      * a person who usually ARRIVEs didn't (e.g. a child late from tuition)
+        -> ``missed_arrival``
+      * an elderly person's usual ACTIVE ping is absent -> ``inactivity``
+      * a medicine usually TAKEN wasn't confirmed -> ``missed_medicine``
 
     Conservative by design so it complements (rather than duplicates)
     ``device_left_on``:
 
-      * only ON / OPEN time patterns (an expected activation that didn't occur);
+      * only activation actions (see ``ROUTINE_ACTIVATIONS``);
       * only confident patterns (``missed_routine_min_confidence``);
       * only for a bounded horizon after the window passes
         (``missed_routine_horizon_minutes``) so the signal is transient;
@@ -351,7 +397,7 @@ def detect_missed_routine(
     anomalies: list[Anomaly] = []
 
     for p in patterns:
-        if not isinstance(p, TimePattern) or p.action not in {"ON", "OPEN"}:
+        if not isinstance(p, TimePattern) or p.action not in ROUTINE_ACTIVATIONS:
             continue
         if p.confidence < s.missed_routine_min_confidence:
             continue
@@ -369,15 +415,84 @@ def detect_missed_routine(
         if p.device in active or (p.device, p.action) in todays:
             continue
 
+        atype = _MISSED_TYPE_BY_ACTION.get(p.action, AnomalyType.MISSED_ROUTINE)
         anomalies.append(
             Anomaly(
-                type=AnomalyType.MISSED_ROUTINE,
+                type=atype,
                 device=p.device,
                 related_pattern_id=p.pattern_id,
-                severity="medium",
+                # People-safety misses are high severity; a device that simply
+                # didn't switch on is a gentle suggestion.
+                severity="high" if atype in _CARE_TYPES else "medium",
+                detail=_missed_detail(p, atype),
+            )
+        )
+    return anomalies
+
+
+# ─── Detector 5: unexpected activity (off-schedule entry) ────────────────────
+
+
+def detect_unexpected_activity(
+    state: HouseholdState,
+    patterns: list[BasePattern],
+    recent_events: list[Event],
+    now: datetime,
+) -> list[Anomaly]:
+    """Inverse of ``missed_routine``: fire when an ARRIVE/ACTIVE event *did*
+    happen today but at a time well outside its learned window.
+
+    This captures the Indian-household "domestic helper / caretaker entered the
+    house outside the usual schedule" case (e.g. the maid normally arrives ~09:00
+    but an arrival is detected at 02:30). It reads today's events from
+    ``recent_events`` and compares each against the learned ARRIVE/ACTIVE time
+    pattern for that exact ``(device, action)``.
+
+    Only ARRIVE / ACTIVE patterns are considered — these are the people/entry
+    signals where an off-schedule occurrence is meaningful. A device turning ON
+    at an odd time is a usage quirk, not a security signal, so ON/OPEN are
+    intentionally excluded here.
+    """
+    s = get_settings()
+    now = _ensure_utc(now)
+    tolerance = s.departure_grace_minutes  # how far outside the window is "off-schedule"
+
+    # (device, action) -> (pattern_id, usual_minute, window, usual_str)
+    expected: dict[tuple[str, str], tuple[str, int, int, str]] = {}
+    for p in patterns:
+        if isinstance(p, TimePattern) and p.action in {"ARRIVE", "ACTIVE"}:
+            expected[(p.device, p.action)] = (
+                p.pattern_id,
+                _hhmm_to_minutes(p.usual_time),
+                p.window_minutes,
+                p.usual_time,
+            )
+
+    anomalies: list[Anomaly] = []
+    flagged: set[tuple[str, str]] = set()
+    for e in recent_events:
+        key = (e.device_id, e.action.value)
+        if key not in expected or key in flagged:
+            continue
+        ets = _ensure_utc(e.timestamp)
+        if ets.date() != now.date():
+            continue
+        pattern_id, usual_min, window, usual_str = expected[key]
+        ev_min = ets.hour * 60 + ets.minute
+        if abs(ev_min - usual_min) <= window + tolerance:
+            continue  # within the normal window → fine
+
+        flagged.add(key)
+        observed = f"{ets.hour:02d}:{ets.minute:02d}"
+        anomalies.append(
+            Anomaly(
+                type=AnomalyType.UNEXPECTED_ACTIVITY,
+                device=e.device_id,
+                related_pattern_id=pattern_id,
+                severity="high",
                 detail=(
-                    f"{p.device} usually {p.action} around {p.usual_time} "
-                    f"but hasn't today."
+                    f"{e.device_id} detected at {observed}, well outside the "
+                    f"usual {usual_str} schedule."
                 ),
             )
         )
@@ -398,4 +513,5 @@ def detect_all(
     anomalies.extend(detect_duration_exceeded(state, patterns, now))
     anomalies.extend(detect_active_too_long(state, patterns, now))
     anomalies.extend(detect_missed_routine(state, patterns, recent_events, now))
+    anomalies.extend(detect_unexpected_activity(state, patterns, recent_events, now))
     return anomalies

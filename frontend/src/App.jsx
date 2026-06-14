@@ -3,6 +3,7 @@ import Dashboard from "./pages/Dashboard";
 import MoodHistory from "./pages/MoodHistory";
 import DeviceControl from "./pages/DeviceControl";
 import Patterns from "./pages/Patterns";
+import Safety from "./pages/Safety";
 import Layout from "./components/Layout";
 import "./App.css";
 
@@ -14,6 +15,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="history" element={<MoodHistory />} />
           <Route path="patterns" element={<Patterns />} />
+          <Route path="safety" element={<Safety />} />
           <Route path="devices" element={<DeviceControl />} />
         </Route>
       </Routes>
